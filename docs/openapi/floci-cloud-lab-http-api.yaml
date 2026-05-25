@@ -1,0 +1,328 @@
+openapi: 3.0.3
+info:
+  title: Floci Cloud Lab Local HTTP API
+  version: 0.1.0
+  description: >-
+    Production-shaped HTTP API contract for the local Floci Cloud Lab Lambda-style handler.
+    The default implementation runs locally and does not create real AWS resources.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local HTTP adapter
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /objects:
+    options:
+      summary: CORS preflight
+      operationId: optionsObjects
+      responses:
+        '204':
+          description: CORS preflight accepted
+    get:
+      summary: List objects for the caller
+      operationId: listObjects
+      parameters:
+        - $ref: '#/components/parameters/FlociUserHeader'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque pagination cursor returned as next_cursor.
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional category filter backed by modeled GSI fields and local fallback.
+      responses:
+        '200':
+          description: Object list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListObjectsResponse'
+    post:
+      summary: Create an object
+      operationId: createObject
+      parameters:
+        - $ref: '#/components/parameters/FlociUserHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObjectRequest'
+      responses:
+        '201':
+          description: Created object metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+  /objects/{object_id}:
+    get:
+      summary: Get an object by id
+      operationId: getObject
+      parameters:
+        - $ref: '#/components/parameters/FlociUserHeader'
+        - name: object_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object metadata and content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /events:
+    get:
+      summary: List local outbox events for the caller
+      operationId: listEvents
+      parameters:
+        - $ref: '#/components/parameters/FlociUserHeader'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, processed]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Event list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEventsResponse'
+  /events/process:
+    post:
+      summary: Process pending local outbox events
+      operationId: processEvents
+      parameters:
+        - $ref: '#/components/parameters/FlociUserHeader'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Processing result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessEventsResponse'
+components:
+  parameters:
+    FlociUserHeader:
+      name: x-floci-user
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Local caller identity used by the lab instead of real auth.
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: Request payload is too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnsupportedMediaType:
+      description: Request content type must be application/json
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Route or object was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    HealthResponse:
+      type: object
+      required: [ok, service, runtime, version, request_id]
+      properties:
+        ok: { type: boolean }
+        service: { type: string }
+        runtime: { type: string }
+        version: { type: string }
+        request_id: { type: string }
+    CreateObjectRequest:
+      type: object
+      required: [name, content]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        content:
+          type: string
+          maxLength: 256000
+        content_type:
+          type: string
+          default: text/plain
+        metadata:
+          type: object
+          additionalProperties: true
+    ObjectRecord:
+      type: object
+      required: [object_id, owner_id, name, content_type, size_bytes, metadata, s3_key, created_at]
+      properties:
+        object_id: { type: string }
+        owner_id: { type: string }
+        name: { type: string }
+        content: { type: string }
+        content_type: { type: string }
+        size_bytes: { type: integer }
+        category: { type: string }
+        version: { type: integer }
+        expires_at: { type: integer }
+        ttl_status: { type: string }
+        metadata:
+          type: object
+          additionalProperties: true
+        s3_bucket: { type: string }
+        s3_key: { type: string }
+        sha256: { type: string }
+        s3_version_id:
+          type: string
+          nullable: true
+        s3_content_type: { type: string }
+        s3_metadata:
+          type: object
+          additionalProperties: true
+        integrity_verified: { type: boolean }
+        event:
+          $ref: '#/components/schemas/EventRecord'
+        created_at: { type: string }
+    ObjectResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          $ref: '#/components/schemas/ObjectRecord'
+        request_id: { type: string }
+    ListObjectsResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [count, objects, next_cursor]
+          properties:
+            count: { type: integer }
+            next_cursor:
+              type: string
+              nullable: true
+            objects:
+              type: array
+              items:
+                $ref: '#/components/schemas/ObjectRecord'
+        request_id: { type: string }
+    EventRecord:
+      type: object
+      required: [event_id, event_type, source, owner_id, object_id, time, status, attempts, idempotency_key, detail]
+      properties:
+        event_id: { type: string }
+        event_type: { type: string, example: ObjectCreated }
+        source: { type: string, example: floci-cloud-lab.objects }
+        detail_type: { type: string, example: Object Created }
+        owner_id: { type: string }
+        object_id: { type: string }
+        time: { type: string }
+        status:
+          type: string
+          enum: [pending, processed]
+        attempts: { type: integer }
+        processed_at: { type: string }
+        worker: { type: string }
+        idempotency_key: { type: string }
+        detail:
+          type: object
+          additionalProperties: true
+    ListEventsResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [count, events]
+          properties:
+            count: { type: integer }
+            events:
+              type: array
+              items:
+                $ref: '#/components/schemas/EventRecord'
+        request_id: { type: string }
+    ProcessEventsResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [processed_count, events]
+          properties:
+            processed_count: { type: integer }
+            events:
+              type: array
+              items:
+                $ref: '#/components/schemas/EventRecord'
+        request_id: { type: string }
+    ErrorResponse:
+      type: object
+      required: [error, request_id]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+        request_id: { type: string }

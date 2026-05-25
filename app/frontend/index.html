@@ -68,6 +68,8 @@
       button.secondary { background: rgba(148, 163, 184, 0.14); color: var(--text); border: 1px solid var(--border); }
       .actions { display: flex; gap: 10px; flex-wrap: wrap; }
       .status { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); }
+      .request-id { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
+      .error { color: #fecaca; }
       .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--warn); box-shadow: 0 0 18px currentColor; }
       .dot.ok { background: var(--ok); }
       .cards { display: grid; gap: 14px; }
@@ -101,6 +103,10 @@
             <input id="name" value="portfolio-note.txt" />
           </div>
           <div class="row">
+            <label for="category">DynamoDB category</label>
+            <input id="category" value="notes" />
+          </div>
+          <div class="row">
             <label for="content">Content</label>
             <textarea id="content">Hello from Floci Cloud Lab. This payload is stored in S3-compatible local storage and indexed in DynamoDB-compatible local metadata.</textarea>
           </div>
@@ -108,6 +114,7 @@
             <button id="create">Create object</button>
             <button id="refresh" class="secondary">Refresh list</button>
           </div>
+          <div>Last request ID: <span id="request-id" class="request-id">none yet</span></div>
           <pre id="output">Ready.</pre>
         </div>
 
@@ -117,8 +124,8 @@
             <p>Default endpoint is localhost:4566 with fake credentials. The lab demonstrates AWS patterns without AWS spend.</p>
           </article>
           <article class="card">
-            <h3>Backend flow</h3>
-            <p>POST /objects stores content in S3-compatible storage and metadata in DynamoDB-compatible storage.</p>
+            <h3>DynamoDB data model</h3>
+            <p>Metadata items include owner keys, category index fields, version numbers, pagination support, and optional TTL fields.</p>
           </article>
           <article class="card">
             <h3>Portfolio proof</h3>
@@ -133,16 +140,24 @@
       const output = $('output');
       const apiUrl = () => $('api-url').value.replace(/\/$/, '');
 
-      function render(value) {
+      function render(value, isError = false) {
+        output.classList.toggle('error', Boolean(isError));
         output.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+      }
+
+      function rememberRequestId(body, response) {
+        const requestId = body?.request_id || response?.headers?.get?.('x-request-id') || 'not returned';
+        $('request-id').textContent = requestId;
       }
 
       async function request(path, options = {}) {
         const response = await fetch(`${apiUrl()}${path}`, {
           ...options,
-          headers: { 'content-type': 'application/json', 'x-floci-user': 'browser-demo', ...(options.headers || {}) },
+          headers: { 'content-type': 'application/json', 'x-floci-user': 'browser-demo', 'x-request-id': `browser-${Date.now()}`, ...(options.headers || {}) },
         });
-        const body = await response.json();
+        const text = await response.text();
+        const body = text ? JSON.parse(text) : {};
+        rememberRequestId(body, response);
         if (!response.ok) throw body;
         return body;
       }
@@ -159,7 +174,9 @@
       }
 
       async function refreshList() {
-        render(await request('/objects'));
+        const category = encodeURIComponent($('category').value.trim());
+        const query = category ? `?limit=10&category=${category}` : '?limit=10';
+        render(await request(`/objects${query}`));
       }
 
       $('create').addEventListener('click', async () => {
@@ -170,16 +187,16 @@
               name: $('name').value,
               content: $('content').value,
               content_type: 'text/plain',
-              metadata: { source: 'frontend-demo' },
+              metadata: { source: 'frontend-demo', category: $('category').value.trim() || 'notes', ttl_days: 30 },
             }),
           });
           render(body);
           await refreshList();
         } catch (error) {
-          render(error);
+          render(error, true);
         }
       });
-      $('refresh').addEventListener('click', () => refreshList().catch(render));
+      $('refresh').addEventListener('click', () => refreshList().catch((error) => render(error, true)));
       checkHealth();
     </script>
   </body>

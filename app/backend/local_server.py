@@ -4,31 +4,50 @@ import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import parse_qsl
+from uuid import uuid4
 
 from app.backend.functions.api import lambda_handler
-
 
 CORS_HEADERS = {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,x-floci-user",
+    "access-control-allow-headers": "content-type,x-floci-user,x-request-id",
+    "access-control-expose-headers": "x-request-id",
 }
 
 
 def build_lambda_event(*, method: str, path: str, headers: dict[str, str], body: bytes) -> dict[str, Any]:
+    request_id = headers.get("x-request-id") or headers.get("X-Request-Id") or f"local-{uuid4().hex}"
+    clean_path = path.split("?", 1)[0]
+    raw_query_string = path.split("?", 1)[1] if "?" in path else ""
     return {
-        "requestContext": {"http": {"method": method.upper(), "path": path}},
+        "version": "2.0",
+        "routeKey": f"{method.upper()} {clean_path}",
+        "rawPath": clean_path,
+        "rawQueryString": raw_query_string,
+        "requestContext": {
+            "requestId": request_id,
+            "http": {
+                "method": method.upper(),
+                "path": clean_path,
+                "protocol": "HTTP/1.1",
+                "sourceIp": "127.0.0.1",
+                "userAgent": headers.get("user-agent", "local-api-adapter"),
+            },
+        },
         "headers": {key.lower(): value for key, value in headers.items()},
+        "queryStringParameters": dict(parse_qsl(raw_query_string, keep_blank_values=True)),
         "body": body.decode("utf-8") if body else None,
         "isBase64Encoded": False,
     }
 
 
 class LocalApiHandler(BaseHTTPRequestHandler):
-    server_version = "FlociCloudLabLocalApi/0.1"
+    server_version = "FlociCloudLabLocalApi/0.2"
 
     def do_OPTIONS(self) -> None:
-        self._send_json(204, "")
+        self._proxy_to_lambda()
 
     def do_GET(self) -> None:
         self._proxy_to_lambda()
@@ -41,7 +60,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(body_length) if body_length else b""
         event = build_lambda_event(
             method=self.command,
-            path=self.path.split("?", 1)[0],
+            path=self.path,
             headers={key: value for key, value in self.headers.items()},
             body=body,
         )
