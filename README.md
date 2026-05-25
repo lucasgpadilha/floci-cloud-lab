@@ -14,6 +14,7 @@ This project is designed to be understandable in a 3-minute portfolio review and
 - Data services: S3-compatible object storage with versioning, content-type/metadata preservation, SHA-256 integrity checks, presigned URL evidence, DynamoDB-compatible metadata persistence, conditional writes, pagination, TTL modeling, and service integration tests.
 - DevOps discipline: Makefile pipeline, shell checks, Docker Compose validation, local-only endpoint guardrails, and evidence artifacts.
 - Resilience/operations discipline: backup manifest modeling, restore sequencing, failure-injection taxonomy, and idempotent replay drills.
+- Orchestration discipline: Step Functions-style workflow modeling, retries, catch branches, compensation plans, and idempotency evidence.
 - Security and cost awareness: fake local credentials, no default real AWS endpoints, no GitHub Actions/GitLab runners, and no cloud spend by default.
 - Documentation quality: architecture notes, runbook, status tracking, roadmap, and interview-oriented walkthroughs.
 
@@ -60,7 +61,7 @@ http://localhost:4566
 | DevOps audit | Implemented | Local-only checks, Compose validation, drift check | CI/CD quality gates |
 | IAM/security modeling | Implemented as policy documents, tests, and docs | Local JSON/Terraform module validation; no real IAM mutation | AWS IAM roles, trust policies, permission policies, IAM Access Analyzer |
 | Event-driven workflows | Implemented with Phase 6 outbox pattern | DynamoDB-compatible outbox/event log, `GET /events`, and idempotent `POST /events/process` local worker | SQS, SNS, EventBridge, Lambda event source mappings |
-| Orchestration workflows | Planned | Local workflow simulation or emulator-backed services | AWS Step Functions |
+| Orchestration workflows | Implemented with Phase 9 local simulation | Step Functions-style state machine, retry/catch modeling, compensation plans, deterministic execution history | AWS Step Functions, Lambda tasks, EventBridge/SQS, CloudWatch/X-Ray |
 | Containers | Planned | Local Docker and optional ECS-shaped exercises | ECS/Fargate |
 | Observability depth | Implemented with Phase 7 local signals | Structured JSON logs, CloudWatch-style metric records, request/trace correlation, demo evidence, runbook drills | CloudWatch Logs, Metrics, Alarms, Dashboards, X-Ray/OpenTelemetry |
 | Resilience/operations | Implemented with Phase 8 local drills | Backup manifest, restore plan, checksum verification, failure-injection taxonomy, idempotent event replay | AWS Backup, S3 version restore, DynamoDB PITR/export, SQS/Lambda idempotency runbooks |
@@ -96,7 +97,7 @@ AWS_SECRET_ACCESS_KEY=test
 
 ## Project status
 
-Current phase: local app demo implemented on top of the Floci-backed Terraform baseline, with Phases 1-8 implemented in the isolated worktree pending human review/approval.
+Current phase: local app demo implemented on top of the Floci-backed Terraform baseline, with Phases 1-9 implemented in the isolated worktree pending human review/approval.
 
 Roadmap for becoming AWS-proficient with this project:
 
@@ -130,6 +131,7 @@ Implemented locally:
 - DevOps audit via `make devops-audit` for drift detection, Compose validation, shell syntax, forbidden CI guardrails, and local-only endpoint checks.
 - Observability demo via `make observability-demo` for structured logs, local metrics, request correlation, and error visibility.
 - Resilience drill via `make resilience-drill` for backup manifests, restore ordering, failure taxonomy, and idempotent event replay.
+- Orchestration demo via `make orchestration-demo` for Step Functions-style state transitions, retries, catch branches, compensation, and idempotency.
 
 ## Recommended review path
 

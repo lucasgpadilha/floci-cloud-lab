@@ -18,6 +18,7 @@ Evidence files should avoid secrets, personal tokens, real AWS account IDs, real
 | `event-driven-architecture.md` | Captures Phase 6 outbox event and idempotent worker validation. | Run `make check`, `make devops-audit`, and `make app-demo`. |
 | `observability-demo.md` | Captures Phase 7 structured logs, local metrics, request correlation, and CloudWatch-style operations evidence. | Run `make observability-demo`, `make check`, and `make devops-audit`. |
 | `resilience-drill.md` | Captures Phase 8 backup/restore planning, failure injection, and idempotent replay evidence. | Run `make resilience-drill`, `make check`, and `make devops-audit`. |
+| `orchestration-demo.md` | Captures Phase 9 Step Functions-style orchestration, retry/catch, compensation, and idempotency evidence. | Run `make orchestration-demo`, `make check`, and `make devops-audit`. |
 
 ## Recommended regeneration flow
 

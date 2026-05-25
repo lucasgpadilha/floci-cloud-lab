@@ -126,3 +126,20 @@ Use this when validating backup manifest checksums, restore sequencing, failure 
 - Corrupted object body: SHA-256 mismatch. Quarantine, restore last known-good body, and audit logs by `request_id`/`trace_id`.
 - Duplicate event replay: same `idempotency_key` appears more than once. Skip duplicates and preserve the first processed result.
 - Emulator unavailable: run `make floci-health`, inspect Docker/Floci logs, restart the local lab only if needed, then rerun smoke/plan checks.
+
+## Orchestration demo: Step Functions-style workflow
+
+```bash
+make orchestration-demo
+```
+
+Use this when validating local workflow state transitions, retries, catch branches, compensation plans, and idempotency without deploying AWS Step Functions.
+
+### Workflow checklist
+
+1. Confirm the demo is local-only and does not require real AWS.
+2. Run the success path and confirm it reaches `Success`.
+3. Confirm a transient `WriteObject` failure schedules a retry with backoff before succeeding.
+4. Run the failure path at `VerifyIntegrity`.
+5. Confirm compensation steps are ordered safely: preserve idempotency, mark event compensated, then quarantine metadata/body.
+6. Map local states to Step Functions, Lambda tasks, EventBridge/SQS, CloudWatch Logs, and X-Ray/OpenTelemetry for interview discussion.
