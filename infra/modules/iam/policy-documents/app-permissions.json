@@ -1,0 +1,61 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowObjectBucketListForAppPrefix",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::floci-cloud-lab-local-objects"
+      ],
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "objects/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AllowObjectReadWriteForAppPrefix",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::floci-cloud-lab-local-objects/objects/*"
+      ]
+    },
+    {
+      "Sid": "AllowMetadataTableAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:BatchGetItem",
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:000000000000:table/floci-cloud-lab-local-metadata"
+      ]
+    },
+    {
+      "Sid": "AllowApplicationLogging",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:DescribeLogStreams",
+        "logs:PutLogEvents"
+      ],
+      "Resource": [
+        "arn:aws:logs:us-east-1:000000000000:log-group:/floci-cloud-lab/local/app:log-stream:app/*"
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ AWS_SECRET_ACCESS_KEY ?= test
 PYTHON ?= python3
 VENV ?= .venv
 
-.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local devops-audit pipeline
+.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill devops-audit pipeline
 
 check: docs-check no-forbidden-ci terraform-fmt terraform-validate python-test
 
@@ -25,6 +25,14 @@ docs-check:
 	@test -f docs/observability.md
 	@test -f docs/runbook.md
 	@test -f docs/devops-testing.md
+	@test -f docs/iam-and-security.md
+	@test -f docs/api-gateway-lambda.md
+	@test -f docs/dynamodb-data-model.md
+	@test -f docs/s3-object-storage.md
+	@test -f docs/event-driven-architecture.md
+	@test -f docs/observability-deep-dive.md
+	@test -f docs/resilience-operations.md
+	@test -f docs/openapi/floci-cloud-lab-http-api.yaml
 	@echo "docs-check: ok"
 
 no-forbidden-ci:
@@ -89,6 +97,15 @@ app-demo:
 
 app-api-local:
 	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python -m app.backend.local_server; else $(PYTHON) -m app.backend.local_server; fi
+
+app-events-process:
+	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/process-events.py; else $(PYTHON) scripts/process-events.py; fi
+
+observability-demo:
+	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/observability-demo.py; else $(PYTHON) scripts/observability-demo.py; fi
+
+resilience-drill:
+	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/resilience-drill.py; else $(PYTHON) scripts/resilience-drill.py; fi
 
 devops-audit:
 	./scripts/devops-audit.sh

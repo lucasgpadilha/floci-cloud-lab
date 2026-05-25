@@ -1,10 +1,10 @@
 # Project Status
 
-Updated: 2026-05-24T21:40:10-03:00
+Updated: 2026-05-25T12:20:08-03:00
 
 ## Current status
 
-The local Floci Cloud Lab baseline is created in the isolated worktree:
+The local Floci Cloud Lab baseline is available in the isolated worktree:
 
 `/home/lucas/agentic/runs/floci-cloud-lab-codex`
 
@@ -12,7 +12,11 @@ The primary repo checkout remains at:
 
 `/home/lucas/projects/floci-cloud-lab`
 
-No commit, push, merge, rebase, or real AWS mutation has been performed.
+The initial baseline was committed and pushed to GitHub on `main` after explicit approval.
+
+A comprehensive AWS proficiency roadmap is now planned in:
+
+`docs/plans/aws-proficiency-roadmap.md`
 
 ## Completed
 
@@ -32,6 +36,14 @@ No commit, push, merge, rebase, or real AWS mutation has been performed.
 - Added a CLI demo at `scripts/app-demo.sh` exposed through `make app-demo`.
 - Added DevOps-focused validation via `make devops-audit`: forbidden CI checks, local-only endpoint checks, shell syntax, Docker Compose validation, Terraform drift detection, and full test suite.
 - Added `docs/devops-testing.md` describing the DevOps validation strategy.
+- Added Phase 1 portfolio polish: `docs/portfolio-walkthrough.md`, `evidence/README.md`, and `evidence/portfolio-walkthrough.md`.
+- Added Phase 2 IAM/security foundations: IAM policy JSON documents, Terraform IAM module outputs, security documentation, wildcard policy tests, and DevOps audit wildcard guard.
+- Added Phase 3 API Gateway/Lambda proficiency: HTTP API v2 contract tests, request IDs, CORS behavior, OpenAPI documentation, frontend error/request-id display, and consistent error envelopes.
+- Added Phase 4 DynamoDB proficiency: data-model documentation, conditional writes, category index fields with local fallback, pagination contract, version attributes, optional TTL fields, and model/contract/integration tests.
+- Added Phase 5 S3 proficiency: safe object key naming, content-type and metadata persistence, SHA-256 integrity metadata, retrieval verification, local presigned URL evidence, and S3 docs covering lifecycle/multipart/security/cost trade-offs.
+- Added Phase 6 event-driven architecture: ObjectCreated outbox events, event listing, idempotent local event processing, and SQS/SNS/EventBridge mapping documentation.
+- Added Phase 7 observability/operations: structured JSON logs, CloudWatch-style local metrics, request/trace correlation, observability demo, deep-dive docs, evidence, and incident drills.
+- Added Phase 8 resilience/operations drills: deterministic backup manifests, restore plan ordering, checksum validation, failure-injection taxonomy, idempotent event replay tests, and evidence.
 
 ## Local resources created in Floci
 
@@ -75,9 +87,9 @@ Results:
 - Smoke tests: passed
 - Unit tests: passed
 - Integration tests against Floci: passed
-- Full Python test suite: `12 passed`
+- Full Python test suite: `34 passed` before Phase 6; Phase 6 adds eventing tests
 - Terraform validate: passed
-- Terraform apply: `4 added, 0 changed, 0 destroyed`
+- Terraform apply: `4 added, 0 changed, 0 destroyed`; rerun on 2026-05-25 to recreate local emulator resources after Floci restart
 - Terraform plan after apply: no changes
 - Terraform drift audit: passed with detailed exit code `0`
 - Docker Compose config validation: passed
@@ -93,11 +105,11 @@ Results:
 
 ## Remaining work
 
-Recommended next phase:
+Recommended next phases:
 
-1. Implement the minimal backend application.
-2. Add local app tests beyond smoke tests.
-3. Add optional local API/Lambda emulation if Floci compatibility is sufficient.
+1. Complete review/approval for Phase 1 portfolio polish, Phase 2 IAM/security foundations, Phase 3 API Gateway/Lambda proficiency, Phase 4 DynamoDB proficiency, and Phase 5 S3 proficiency.
+2. Review/approve Phases 6-8 and decide whether to run future local Terraform migrations for physical queues/topics/rules, CloudWatch alarms/dashboards, or backup-oriented resources.
+3. Add orchestration workflows such as Step Functions-style local workflow simulation.
 4. Add richer evidence capture for portfolio screenshots/logs.
 5. Decide whether to copy or merge the isolated worktree result into the primary checkout after human review.
 

@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyDeletingObjectsOutsideAppPrefix",
+      "Effect": "Deny",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion"
+      ],
+      "NotResource": [
+        "arn:aws:s3:::floci-cloud-lab-local-objects/objects/*"
+      ]
+    },
+    {
+      "Sid": "DenyWritesToNonLocalRuntimeTaggedResources",
+      "Effect": "Deny",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "logs:PutLogEvents"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:000000000000:table/floci-cloud-lab-local-metadata",
+        "arn:aws:logs:us-east-1:000000000000:log-group:/floci-cloud-lab/local/app:log-stream:app/*"
+      ],
+      "Condition": {
+        "StringNotEqualsIfExists": {
+          "aws:ResourceTag/Runtime": "FlociLocal"
+        }
+      }
+    }
+  ]
+}

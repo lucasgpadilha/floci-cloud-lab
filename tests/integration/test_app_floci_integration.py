@@ -27,11 +27,13 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def invoke(handler, method, path, body=None, headers=None):
+def invoke(handler, method, path, body=None, headers=None, query=None):
     event = {
         "requestContext": {"http": {"method": method, "path": path}},
-        "headers": headers or {},
+        "headers": {"content-type": "application/json", **(headers or {})},
+        "queryStringParameters": query or {},
         "body": json.dumps(body) if isinstance(body, dict) else body,
+        "isBase64Encoded": False,
     }
     return handler(event, None)
 
@@ -83,3 +85,42 @@ def test_api_persists_object_metadata_and_content_in_floci():
     assert fetched["statusCode"] == 200
     assert fetched_body["data"]["content"] == "stored through the app API on local Floci"
     assert fetched_body["data"]["metadata"] == {"test": "integration"}
+
+
+def test_api_lists_objects_with_pagination_and_category_filter_in_floci():
+    clients = aws_clients_from_env()
+    repo = AwsObjectRepository(
+        s3_client=clients.s3,
+        dynamodb_resource=clients.dynamodb,
+        bucket_name=BUCKET,
+        table_name=TABLE,
+    )
+    handler = create_handler(repository=repo)
+    owner = "integration-pagination-user"
+
+    for name, category in [("a.txt", "notes"), ("b.txt", "notes"), ("c.txt", "logs")]:
+        created = invoke(
+            handler,
+            "POST",
+            "/objects",
+            {
+                "name": name,
+                "content": f"content for {name}",
+                "content_type": "text/plain",
+                "metadata": {"category": category, "test": "pagination"},
+            },
+            headers={"x-floci-user": owner},
+        )
+        assert created["statusCode"] == 201
+
+    first_page = invoke(
+        handler,
+        "GET",
+        "/objects",
+        headers={"x-floci-user": owner},
+        query={"limit": "2", "category": "notes"},
+    )
+    assert first_page["statusCode"] == 200
+    first_body = parse_body(first_page)
+    assert first_body["data"]["count"] == 2
+    assert all(item["category"] == "notes" for item in first_body["data"]["objects"])

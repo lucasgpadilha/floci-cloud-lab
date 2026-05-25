@@ -19,10 +19,11 @@ import json
 from app.backend.functions.api import lambda_handler
 
 
-def invoke(method, path, body=None, user="cli-demo"):
+def invoke(method, path, body=None, user="cli-demo", query=None):
     event = {
         "requestContext": {"http": {"method": method, "path": path}},
         "headers": {"x-floci-user": user, "content-type": "application/json"},
+        "queryStringParameters": query or {},
         "body": json.dumps(body) if body is not None else None,
     }
     response = lambda_handler(event, None)
@@ -44,4 +45,7 @@ created = invoke(
 object_id = json.loads(created["body"])["data"]["object_id"]
 invoke("GET", "/objects")
 invoke("GET", f"/objects/{object_id}")
+invoke("GET", "/events", query={"status": "pending"})
+invoke("POST", "/events/process")
+invoke("GET", "/events")
 PY
