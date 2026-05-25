@@ -8,7 +8,7 @@ AWS_SECRET_ACCESS_KEY ?= test
 PYTHON ?= python3
 VENV ?= .venv
 
-.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill devops-audit pipeline
+.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo devops-audit pipeline
 
 check: docs-check no-forbidden-ci terraform-fmt terraform-validate python-test
 
@@ -32,6 +32,7 @@ docs-check:
 	@test -f docs/event-driven-architecture.md
 	@test -f docs/observability-deep-dive.md
 	@test -f docs/resilience-operations.md
+	@test -f docs/orchestration-workflows.md
 	@test -f docs/openapi/floci-cloud-lab-http-api.yaml
 	@echo "docs-check: ok"
 
@@ -106,6 +107,9 @@ observability-demo:
 
 resilience-drill:
 	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/resilience-drill.py; else $(PYTHON) scripts/resilience-drill.py; fi
+
+orchestration-demo:
+	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/orchestration-demo.py; else $(PYTHON) scripts/orchestration-demo.py; fi
 
 devops-audit:
 	./scripts/devops-audit.sh
