@@ -1,0 +1,7 @@
+# Local Floci-only Terraform variables.
+# Do not put real AWS credentials here.
+
+aws_endpoint_url = "http://localhost:4566"
+aws_region       = "us-east-1"
+environment      = "local"
+name_prefix      = "floci-cloud-lab"

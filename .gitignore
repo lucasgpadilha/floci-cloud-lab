@@ -1,0 +1,11 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+.env.local
+evidence/*.log
+evidence/*.json
+!evidence/.gitkeep
