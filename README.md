@@ -4,52 +4,32 @@ A personal AWS learning and portfolio project that uses [Floci](https://github.c
 
 This repository is not the Floci emulator itself. It is a hands-on lab that runs AWS-shaped infrastructure and tests against Floci at `http://localhost:4566`.
 
-## Goals
+## What this demonstrates
 
-- Learn AWS by using familiar AWS APIs locally.
-- Build a portfolio-quality cloud engineering project without AWS spend.
-- Validate Terraform infrastructure against a local AWS-compatible endpoint.
-- Test S3, DynamoDB, Lambda, API Gateway v2, Cognito, IAM/STS, CloudWatch, and eventing patterns where supported by Floci.
-- Demonstrate CI/CD thinking without GitHub Actions or GitLab runners.
-- Produce clear docs, runbooks, ADRs, and evidence artifacts.
+This project is designed to be understandable in a 3-minute portfolio review and deep enough for a technical interview.
 
-## Chosen stack
+- Local cloud engineering: AWS-shaped services exercised through a local emulator instead of a paid cloud account.
+- Infrastructure as Code: Terraform modules, local environment wiring, provider endpoint overrides, validation, and plan/drift checks.
+- Serverless application design: Lambda-style Python handler, API routes, object metadata, and a local HTTP adapter for browser testing.
+- Data services: S3-compatible object storage with versioning, content-type/metadata preservation, SHA-256 integrity checks, presigned URL evidence, DynamoDB-compatible metadata persistence, conditional writes, pagination, TTL modeling, and service integration tests.
+- DevOps discipline: Makefile pipeline, shell checks, Docker Compose validation, local-only endpoint guardrails, and evidence artifacts.
+- Resilience/operations discipline: backup manifest modeling, restore sequencing, failure-injection taxonomy, and idempotent replay drills.
+- Security and cost awareness: fake local credentials, no default real AWS endpoints, no GitHub Actions/GitLab runners, and no cloud spend by default.
+- Documentation quality: architecture notes, runbook, status tracking, roadmap, and interview-oriented walkthroughs.
 
-- AWS emulator: Floci via Docker Compose.
-- IaC: Terraform.
-- Backend/tests: Python, boto3, pytest.
-- Frontend: static HTML first, React/Vite optional later.
-- Pipeline: Makefile local pipeline + Hermes agentic workflow + future Floci-emulated CodeBuild dogfood.
+## Quick demo in 5 commands
 
-## Quick start
-
-Start Floci:
+From this repository/worktree:
 
 ```bash
 make floci-up
 make floci-health
-```
-
-Initialize and validate the local Terraform environment:
-
-```bash
 make check
 make terraform-plan-local
-```
-
-The local resources have already been designed to target only:
-
-```text
-http://localhost:4566
-```
-
-After an approved local apply, exercise the app API:
-
-```bash
 make app-demo
 ```
 
-Run the local HTTP adapter for the static frontend:
+Optional browser demo:
 
 ```bash
 make app-api-local
@@ -61,7 +41,39 @@ Then open:
 app/frontend/index.html
 ```
 
-## Safety
+The local resources target only:
+
+```text
+http://localhost:4566
+```
+
+## Service matrix
+
+| Capability | Status in this repo | Floci/local support used | Real AWS equivalent |
+| --- | --- | --- | --- |
+| Object storage | Implemented with Phase 5 S3 polish | S3-compatible bucket, versioning, content type/metadata preservation, SHA-256 integrity metadata, and presigned URL generation | Amazon S3 |
+| Metadata store | Implemented with Phase 4 data-model polish | DynamoDB-compatible table operations, conditional writes, category index fields, pagination, version, and TTL modeling | Amazon DynamoDB |
+| App logging baseline | Implemented | CloudWatch-compatible log group IaC | Amazon CloudWatch Logs |
+| Lambda-style API | Implemented locally | Python handler and local adapter | AWS Lambda |
+| HTTP API surface | Implemented with HTTP API v2 contract tests and OpenAPI docs | Local HTTP adapter for `/health` and object routes | Amazon API Gateway HTTP API |
+| Infrastructure validation | Implemented | Terraform against local endpoint | Terraform AWS provider targeting AWS |
+| DevOps audit | Implemented | Local-only checks, Compose validation, drift check | CI/CD quality gates |
+| IAM/security modeling | Implemented as policy documents, tests, and docs | Local JSON/Terraform module validation; no real IAM mutation | AWS IAM roles, trust policies, permission policies, IAM Access Analyzer |
+| Event-driven workflows | Implemented with Phase 6 outbox pattern | DynamoDB-compatible outbox/event log, `GET /events`, and idempotent `POST /events/process` local worker | SQS, SNS, EventBridge, Lambda event source mappings |
+| Orchestration workflows | Planned | Local workflow simulation or emulator-backed services | AWS Step Functions |
+| Containers | Planned | Local Docker and optional ECS-shaped exercises | ECS/Fargate |
+| Observability depth | Implemented with Phase 7 local signals | Structured JSON logs, CloudWatch-style metric records, request/trace correlation, demo evidence, runbook drills | CloudWatch Logs, Metrics, Alarms, Dashboards, X-Ray/OpenTelemetry |
+| Resilience/operations | Implemented with Phase 8 local drills | Backup manifest, restore plan, checksum verification, failure-injection taxonomy, idempotent event replay | AWS Backup, S3 version restore, DynamoDB PITR/export, SQS/Lambda idempotency runbooks |
+
+## Chosen stack
+
+- AWS emulator: Floci via Docker Compose.
+- IaC: Terraform.
+- Backend/tests: Python, boto3, pytest.
+- Frontend: static HTML first, React/Vite optional later.
+- Pipeline: Makefile local pipeline + Hermes agentic workflow + future Floci-emulated CodeBuild dogfood.
+
+## Safety boundary
 
 Default workflows must not create real AWS resources. Local credentials in this repo are fake development values for Floci only.
 
@@ -73,17 +85,56 @@ Do not use:
 - real AWS endpoints by default
 - `terraform apply` against real AWS
 
+Safe defaults used by the lab:
+
+```text
+FLOCI_ENDPOINT=http://localhost:4566
+AWS_DEFAULT_REGION=us-east-1
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
+```
+
 ## Project status
 
-Current phase: local app demo implemented on top of the Floci-backed Terraform baseline.
+Current phase: local app demo implemented on top of the Floci-backed Terraform baseline, with Phases 1-8 implemented in the isolated worktree pending human review/approval.
+
+Roadmap for becoming AWS-proficient with this project:
+
+```text
+docs/plans/aws-proficiency-roadmap.md
+```
+
+Portfolio walkthrough:
+
+```text
+docs/portfolio-walkthrough.md
+```
+
+Evidence index:
+
+```text
+evidence/README.md
+```
 
 Implemented locally:
 
-- Terraform-managed S3-compatible object bucket.
-- Terraform-managed DynamoDB-compatible metadata table.
+- Terraform-managed S3-compatible object bucket with versioning, safe key naming, content-type/metadata preservation, SHA-256 integrity checks, and local presigned URL evidence.
+- Terraform-managed DynamoDB-compatible metadata table with owner/object keys, conditional writes, category index fields, pagination, version attributes, and optional TTL fields.
 - Terraform-managed CloudWatch-compatible app log group.
+- Educational IAM policy documents for app permissions and explicit-deny guardrails, validated without real IAM mutation.
 - Python Lambda-style API handler with `/health`, `POST /objects`, `GET /objects`, and `GET /objects/{id}`.
+- API Gateway HTTP API v2-shaped contract tests, request IDs, CORS behavior, and OpenAPI documentation.
 - Static frontend in `app/frontend/index.html`.
 - Local HTTP adapter via `make app-api-local`.
 - CLI demo via `make app-demo`.
 - DevOps audit via `make devops-audit` for drift detection, Compose validation, shell syntax, forbidden CI guardrails, and local-only endpoint checks.
+- Observability demo via `make observability-demo` for structured logs, local metrics, request correlation, and error visibility.
+- Resilience drill via `make resilience-drill` for backup manifests, restore ordering, failure taxonomy, and idempotent event replay.
+
+## Recommended review path
+
+1. Read this README for the 3-minute overview.
+2. Read `docs/portfolio-walkthrough.md` for the interview narrative.
+3. Read `docs/architecture.md` for the technical shape.
+4. Run the 5-command demo above.
+5. Review `evidence/README.md` and `evidence/portfolio-walkthrough.md` for reproducible validation output.

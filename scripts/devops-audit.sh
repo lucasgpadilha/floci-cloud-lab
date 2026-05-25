@@ -39,6 +39,14 @@ else
 fi
 ok "no real AWS endpoint patterns found"
 
+log "IAM wildcard policy guard"
+if grep -RInE --include='*.json' --include='*.tf' --exclude-dir='.terraform' \
+  '"(Action|Resource)"[[:space:]]*:[[:space:]]*"\\*"|"(Action|Resource)"[[:space:]]*:[[:space:]]*\[[^]]*"\\*"|\b(actions|resources)[[:space:]]*=[[:space:]]*\[[^]]*"\\*"' \
+  infra/modules/iam 2>/dev/null; then
+  fail "IAM policy documents contain exact wildcard Action or Resource"
+fi
+ok "IAM policy documents avoid exact wildcard Action/Resource"
+
 log "shell syntax"
 while IFS= read -r script; do
   bash -n "$script"
