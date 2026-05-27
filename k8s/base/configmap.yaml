@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: floci-cloud-lab-config
+  namespace: floci-cloud-lab
+  labels:
+    app.kubernetes.io/name: floci-cloud-lab
+data:
+  AWS_DEFAULT_REGION: us-east-1
+  FLOCI_ENDPOINT: http://floci:4566
+  FLOCI_OBJECT_BUCKET: floci-cloud-lab-local-objects
+  FLOCI_METADATA_TABLE: floci-cloud-lab-local-metadata

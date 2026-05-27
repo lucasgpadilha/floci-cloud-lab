@@ -16,6 +16,7 @@ This project is designed to be understandable in a 3-minute portfolio review and
 - Resilience/operations discipline: backup manifest modeling, restore sequencing, failure-injection taxonomy, and idempotent replay drills.
 - Orchestration discipline: Step Functions-style workflow modeling, retries, catch branches, compensation plans, and idempotency evidence.
 - Container discipline: local Docker image, Compose app service, `/health` healthcheck, and ECS/Fargate mapping without ECR/ECS deployment.
+- Kubernetes platform discipline: portable manifests for namespace, service account, deployment, service, HPA, and network policy with EKS vs OKE comparison notes.
 - Security and cost awareness: fake local credentials, no default real AWS endpoints, no GitHub Actions/GitLab runners, and no cloud spend by default.
 - Documentation quality: architecture notes, runbook, status tracking, roadmap, and interview-oriented walkthroughs.
 
@@ -64,6 +65,7 @@ http://localhost:4566
 | Event-driven workflows | Implemented with Phase 6 outbox pattern | DynamoDB-compatible outbox/event log, `GET /events`, and idempotent `POST /events/process` local worker | SQS, SNS, EventBridge, Lambda event source mappings |
 | Orchestration workflows | Implemented with Phase 9 local simulation | Step Functions-style state machine, retry/catch modeling, compensation plans, deterministic execution history | AWS Step Functions, Lambda tasks, EventBridge/SQS, CloudWatch/X-Ray |
 | Containers | Implemented with Phase 10 local workflow | Dockerfile, Compose app service, container healthcheck, local build/run demo, static config tests | ECS/Fargate, ECR, ALB target groups, CloudWatch Logs |
+| Kubernetes platform baseline | Implemented with Phase 11 local/reference workflow | Portable Kubernetes manifests and static validation for namespace, service account, deployment, service, HPA, and network policy | EKS clusters, managed node groups/Fargate profiles, ECR, AWS Load Balancer Controller, CloudWatch Container Insights |
 | Observability depth | Implemented with Phase 7 local signals | Structured JSON logs, CloudWatch-style metric records, request/trace correlation, demo evidence, runbook drills | CloudWatch Logs, Metrics, Alarms, Dashboards, X-Ray/OpenTelemetry |
 | Resilience/operations | Implemented with Phase 8 local drills | Backup manifest, restore plan, checksum verification, failure-injection taxonomy, idempotent event replay | AWS Backup, S3 version restore, DynamoDB PITR/export, SQS/Lambda idempotency runbooks |
 
@@ -98,7 +100,7 @@ AWS_SECRET_ACCESS_KEY=test
 
 ## Project status
 
-Current phase: local app demo implemented on top of the Floci-backed Terraform baseline, with Phases 1-10 implemented in the isolated worktree pending human review/approval.
+Current phase: Kubernetes platform baseline for EKS vs OKE comparison is implemented locally in the Phase 11 isolated worktree. Phases 1-10 are already merged on `main`.
 
 Roadmap for becoming AWS-proficient with this project:
 
@@ -134,6 +136,7 @@ Implemented locally:
 - Resilience drill via `make resilience-drill` for backup manifests, restore ordering, failure taxonomy, and idempotent event replay.
 - Orchestration demo via `make orchestration-demo` for Step Functions-style state transitions, retries, catch branches, compensation, and idempotency.
 - Container demo via `make app-container-demo` for local image build/run, Compose service health, and ECS/Fargate-ready runtime documentation.
+- Kubernetes baseline via `make k8s-validate` for portable manifests and EKS vs OKE comparison documentation without requiring a live cluster.
 
 ## Recommended review path
 

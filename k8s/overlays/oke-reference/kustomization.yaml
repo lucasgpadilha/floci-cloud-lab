@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+commonAnnotations:
+  floci-cloud-lab.io/provider-study: oke
+  floci-cloud-lab.io/reference-only: "true"
+  floci-cloud-lab.io/real-cloud-note: "Real OKE would add VCN integration, OCIR, OCI load balancer integration, OCI IAM/workload identity, and OCI Logging/Monitoring."
