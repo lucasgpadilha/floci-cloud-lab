@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: floci-cloud-lab
+  labels:
+    app.kubernetes.io/name: floci-cloud-lab
+    app.kubernetes.io/part-of: floci-cloud-lab

@@ -8,9 +8,9 @@ AWS_SECRET_ACCESS_KEY ?= test
 PYTHON ?= python3
 VENV ?= .venv
 
-.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate compose-container-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo app-container-build app-container-demo app-container-health devops-audit pipeline
+.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate compose-container-validate k8s-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo app-container-build app-container-demo app-container-health devops-audit pipeline
 
-check: docs-check no-forbidden-ci terraform-fmt terraform-validate python-test
+check: docs-check no-forbidden-ci k8s-validate terraform-fmt terraform-validate python-test
 
 docs-check:
 	@test -f README.md
@@ -34,6 +34,12 @@ docs-check:
 	@test -f docs/resilience-operations.md
 	@test -f docs/orchestration-workflows.md
 	@test -f docs/containers-ecs.md
+	@test -f docs/eks-oke-comparison.md
+	@test -f docs/kubernetes-platform-baseline.md
+	@test -f k8s/base/kustomization.yaml
+	@test -f k8s/overlays/eks-local/kustomization.yaml
+	@test -f k8s/overlays/oke-reference/kustomization.yaml
+	@test -f evidence/eks-oke-baseline.md
 	@test -f compose.container.yaml
 	@test -f docs/openapi/floci-cloud-lab-http-api.yaml
 	@echo "docs-check: ok"
@@ -68,6 +74,9 @@ compose-validate:
 
 compose-container-validate:
 	docker compose -f compose.container.yaml config --quiet
+
+k8s-validate:
+	./scripts/k8s-validate.sh
 
 shell-check:
 	@find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n

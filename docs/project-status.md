@@ -46,6 +46,7 @@ A comprehensive AWS proficiency roadmap is now planned in:
 - Added Phase 8 resilience/operations drills: deterministic backup manifests, restore plan ordering, checksum validation, failure-injection taxonomy, idempotent event replay tests, and evidence.
 - Added Phase 9 orchestration workflows: Step Functions-style state machine simulation, retry/catch modeling, compensation planning, deterministic execution history, tests, demo, and evidence.
 - Added Phase 10 containers/ECS-style workflows: local app Docker image, Compose service, healthcheck demo, container config tests, ECS/Fargate mapping docs, and evidence.
+- Added Phase 11 Kubernetes platform baseline: portable Kubernetes manifests, static validation, EKS vs OKE comparison docs, and local-only evidence notes.
 
 ## Local resources created in Floci
 
