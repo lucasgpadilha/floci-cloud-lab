@@ -1,0 +1,36 @@
+services:
+  floci:
+    image: floci/floci:latest
+    environment:
+      FLOCI_DEFAULT_REGION: us-east-1
+      FLOCI_DEFAULT_ACCOUNT_ID: "000000000000"
+      FLOCI_STORAGE_MODE: memory
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: floci-cloud-lab-app:local
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      FLOCI_ENDPOINT: http://floci:4566
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      FLOCI_OBJECT_BUCKET: floci-cloud-lab-local-objects
+      FLOCI_METADATA_TABLE: floci-cloud-lab-local-metadata
+    depends_on:
+      - floci
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2); assert r.status == 200; json.loads(r.read().decode())"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
