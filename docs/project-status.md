@@ -45,6 +45,7 @@ A comprehensive AWS proficiency roadmap is now planned in:
 - Added Phase 7 observability/operations: structured JSON logs, CloudWatch-style local metrics, request/trace correlation, observability demo, deep-dive docs, evidence, and incident drills.
 - Added Phase 8 resilience/operations drills: deterministic backup manifests, restore plan ordering, checksum validation, failure-injection taxonomy, idempotent event replay tests, and evidence.
 - Added Phase 9 orchestration workflows: Step Functions-style state machine simulation, retry/catch modeling, compensation planning, deterministic execution history, tests, demo, and evidence.
+- Added Phase 10 containers/ECS-style workflows: local app Docker image, Compose service, healthcheck demo, container config tests, ECS/Fargate mapping docs, and evidence.
 
 ## Local resources created in Floci
 
@@ -109,8 +110,8 @@ Results:
 Recommended next phases:
 
 1. Complete review/approval for Phase 1 portfolio polish, Phase 2 IAM/security foundations, Phase 3 API Gateway/Lambda proficiency, Phase 4 DynamoDB proficiency, and Phase 5 S3 proficiency.
-2. Review/approve Phases 6-9 and decide whether to run future local Terraform migrations for physical queues/topics/rules, CloudWatch alarms/dashboards, backup-oriented resources, or Step Functions resources.
-3. Add container/ECS-oriented workflows or CodeBuild-style local pipeline dogfooding.
+2. Review/approve Phases 6-10 and decide whether to run future local Terraform migrations for physical queues/topics/rules, CloudWatch alarms/dashboards, backup-oriented resources, Step Functions resources, or ECR/ECS resources.
+3. Add CodeBuild-style local pipeline dogfooding or richer frontend/reviewer demo polish.
 4. Add richer evidence capture for portfolio screenshots/logs.
 5. Decide whether to copy or merge the isolated worktree result into the primary checkout after human review.
 

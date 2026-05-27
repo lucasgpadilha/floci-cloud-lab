@@ -143,3 +143,21 @@ Use this when validating local workflow state transitions, retries, catch branch
 4. Run the failure path at `VerifyIntegrity`.
 5. Confirm compensation steps are ordered safely: preserve idempotency, mark event compensated, then quarantine metadata/body.
 6. Map local states to Step Functions, Lambda tasks, EventBridge/SQS, CloudWatch Logs, and X-Ray/OpenTelemetry for interview discussion.
+
+## Container demo: local app service
+
+```bash
+make app-container-demo
+```
+
+Use this when validating that the local API adapter can run as a containerized service beside Floci and expose a healthcheck suitable for ECS/Fargate-style operations.
+
+### Container checklist
+
+1. Confirm Docker is available and the daemon is running.
+2. Build the local image with `make app-container-build`.
+3. Start Floci plus the app with `make app-container-demo`.
+4. Confirm `GET http://127.0.0.1:8080/health` returns `ok=true`.
+5. Confirm Docker health reports `healthy` for the app container.
+6. If this were real AWS, map the image to ECR, the app service to ECS/Fargate, `/health` to the ALB target group health check, and stdout logs to CloudWatch Logs.
+7. Do not push images to ECR or create ECS resources unless explicitly approved.

@@ -19,6 +19,7 @@ Evidence files should avoid secrets, personal tokens, real AWS account IDs, real
 | `observability-demo.md` | Captures Phase 7 structured logs, local metrics, request correlation, and CloudWatch-style operations evidence. | Run `make observability-demo`, `make check`, and `make devops-audit`. |
 | `resilience-drill.md` | Captures Phase 8 backup/restore planning, failure injection, and idempotent replay evidence. | Run `make resilience-drill`, `make check`, and `make devops-audit`. |
 | `orchestration-demo.md` | Captures Phase 9 Step Functions-style orchestration, retry/catch, compensation, and idempotency evidence. | Run `make orchestration-demo`, `make check`, and `make devops-audit`. |
+| `container-demo.md` | Captures Phase 10 local container build/run healthcheck and ECS/Fargate mapping evidence. | Run `make app-container-demo`, `make check`, and `make devops-audit`. |
 
 ## Recommended regeneration flow
 

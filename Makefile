@@ -8,7 +8,7 @@ AWS_SECRET_ACCESS_KEY ?= test
 PYTHON ?= python3
 VENV ?= .venv
 
-.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo devops-audit pipeline
+.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate compose-container-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo app-container-build app-container-demo app-container-health devops-audit pipeline
 
 check: docs-check no-forbidden-ci terraform-fmt terraform-validate python-test
 
@@ -33,6 +33,8 @@ docs-check:
 	@test -f docs/observability-deep-dive.md
 	@test -f docs/resilience-operations.md
 	@test -f docs/orchestration-workflows.md
+	@test -f docs/containers-ecs.md
+	@test -f compose.container.yaml
 	@test -f docs/openapi/floci-cloud-lab-http-api.yaml
 	@echo "docs-check: ok"
 
@@ -63,6 +65,9 @@ floci-smoke:
 
 compose-validate:
 	docker compose config --quiet
+
+compose-container-validate:
+	docker compose -f compose.container.yaml config --quiet
 
 shell-check:
 	@find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
@@ -110,6 +115,15 @@ resilience-drill:
 
 orchestration-demo:
 	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/orchestration-demo.py; else $(PYTHON) scripts/orchestration-demo.py; fi
+
+app-container-build:
+	docker compose -f compose.container.yaml build app
+
+app-container-demo:
+	./scripts/container-demo.sh
+
+app-container-health:
+	@$(PYTHON) -c 'import json, urllib.request; r=urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=2); print(json.dumps(json.loads(r.read().decode()), sort_keys=True)); raise SystemExit(0 if r.status == 200 else 1)'
 
 devops-audit:
 	./scripts/devops-audit.sh

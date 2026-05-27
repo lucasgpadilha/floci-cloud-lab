@@ -1,0 +1,16 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.terraform
+*.tfstate
+*.tfstate.backup
+.env
+.env.*
+!.env.example
+node_modules
+coverage
+htmlcov
+.DS_Store
+agentic
