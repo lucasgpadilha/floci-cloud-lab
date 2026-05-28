@@ -57,6 +57,14 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
                 }
                 return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
 
+            if method == "GET" and path == "/ops/status":
+                response_body = _ops_status_response(request_id)
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/resources":
+                response_body = _ops_resources_response(request_id)
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
             if method == "POST" and path == "/objects":
                 _require_json_content_type(event)
                 payload = _json_body(event)
@@ -205,6 +213,183 @@ def _validate_create_payload(payload: JsonDict) -> None:
         raise BadRequest("validation_error", "metadata must be an object when provided")
     if not isinstance(content_type, str) or "/" not in content_type:
         raise BadRequest("validation_error", "content_type must be a valid media type when provided")
+
+
+def _ops_status_response(request_id: str) -> JsonDict:
+    components = [
+        {
+            "id": "api",
+            "name": "Backend API",
+            "category": "compute",
+            "status": "online",
+            "engine": "Python Lambda-style HTTP adapter",
+            "aws_equivalent": "AWS::Lambda::Function",
+            "capabilities": ["http-api", "object-crud", "event-processing", "cors"],
+        },
+        {
+            "id": "storage",
+            "name": "Object Storage",
+            "category": "storage",
+            "status": "online",
+            "engine": "S3 (Local)",
+            "aws_equivalent": "AWS::S3::Bucket",
+            "capabilities": ["put-object", "get-object", "list-objects", "versioning"],
+        },
+        {
+            "id": "database",
+            "name": "Metadata Store",
+            "category": "database",
+            "status": "online",
+            "engine": "DynamoDB (Local)",
+            "aws_equivalent": "AWS::DynamoDB::Table",
+            "capabilities": ["metadata-index", "event-outbox", "pagination", "category-filter"],
+        },
+        {
+            "id": "observability",
+            "name": "Local Observability",
+            "category": "observability",
+            "status": "configured",
+            "engine": "Structured logs and in-process metrics",
+            "aws_equivalent": "AWS::Logs::LogGroup",
+            "capabilities": ["structured-logs", "request-metrics", "request-id-correlation"],
+        },
+    ]
+    return {
+        "status": "ready",
+        "mode": "local",
+        "service": "floci-cloud-lab-api",
+        "runtime": "local-floci",
+        "environment": {
+            "local_only": True,
+            "cloud_provider": "aws-compatible",
+            "emulator": "floci",
+            "region": "us-east-1",
+            "account_id": "000000000000",
+        },
+        "emulator": {
+            "name": "Floci",
+            "endpoint": "http://localhost:4566",
+            "connected": True,
+            "status": "online",
+        },
+        "database": {"engine": "DynamoDB (Local)", "status": "online"},
+        "storage": {"engine": "S3 (Local)", "status": "online"},
+        "components": components,
+        "safety": {
+            "local_only": True,
+            "uses_real_cloud": False,
+            "uses_real_credentials": False,
+            "allows_shell_execution": False,
+            "bounded_mutations_only": True,
+        },
+        "dashboard": {
+            "recommended_refresh_seconds": 5,
+            "primary_actions": [
+                {"id": "create-demo-object", "label": "Create demo object", "method": "POST", "path": "/objects", "safe": True},
+                {"id": "process-events", "label": "Process pending events", "method": "POST", "path": "/events/process?limit=10", "safe": True},
+            ],
+        },
+        "request_id": request_id,
+    }
+
+
+def _ops_resources_response(request_id: str) -> JsonDict:
+    resources = [
+        _resource(
+            id="api-function",
+            name="floci-cloud-lab-local-api",
+            type="AWS::Lambda::Function",
+            category="compute",
+            local_id="local-api-handler",
+            service="lambda",
+            resource_type="function",
+            description="Local API handler equivalent to a Lambda-backed HTTP API",
+            capabilities=["http-routing", "validation", "cors", "observability"],
+            display_order=5,
+            badge="API",
+            contains_demo_data=False,
+        ),
+        _resource(
+            id="objects-bucket",
+            name="floci-cloud-lab-local-objects",
+            type="AWS::S3::Bucket",
+            category="storage",
+            local_id="local-objects-bucket",
+            service="s3",
+            resource_type="bucket",
+            description="Primary object storage",
+            capabilities=["put-object", "get-object", "list-objects", "versioning"],
+            display_order=10,
+            badge="Storage",
+        ),
+        _resource(
+            id="metadata-table",
+            name="floci-cloud-lab-local-metadata",
+            type="AWS::DynamoDB::Table",
+            category="database",
+            local_id="local-metadata-table",
+            service="dynamodb",
+            resource_type="table",
+            description="Object metadata and event store",
+            capabilities=["object-metadata", "event-outbox", "query-by-owner", "pagination"],
+            display_order=20,
+            badge="Database",
+        ),
+        _resource(
+            id="app-logs",
+            name="/floci-cloud-lab/local/app",
+            type="AWS::Logs::LogGroup",
+            category="observability",
+            local_id="local-app-logs",
+            service="cloudwatch",
+            resource_type="log-group",
+            description="Application logs and request traces",
+            capabilities=["structured-logs", "request-id-correlation", "error-tracking"],
+            display_order=30,
+            badge="Logs",
+        ),
+    ]
+    return {
+        "resources": resources,
+        "categories": [
+            {"id": "compute", "label": "Compute", "description": "Local API and request handling"},
+            {"id": "storage", "label": "Storage", "description": "S3-compatible object storage"},
+            {"id": "database", "label": "Database", "description": "DynamoDB-compatible metadata and events"},
+            {"id": "observability", "label": "Observability", "description": "Logs, metrics, and traces"},
+        ],
+        "summary": {"count": len(resources), "available": len(resources), "degraded": 0, "offline": 0, "local_only": True},
+        "request_id": request_id,
+    }
+
+
+def _resource(
+    *,
+    id: str,
+    name: str,
+    type: str,
+    category: str,
+    local_id: str,
+    service: str,
+    resource_type: str,
+    description: str,
+    capabilities: list[str],
+    display_order: int,
+    badge: str,
+    contains_demo_data: bool = True,
+) -> JsonDict:
+    return {
+        "id": id,
+        "name": name,
+        "type": type,
+        "category": category,
+        "local_id": local_id,
+        "aws_equivalent": {"service": service, "resource_type": resource_type, "cloudformation_type": type},
+        "status": "available",
+        "description": description,
+        "capabilities": capabilities,
+        "safety": {"local_only": True, "contains_demo_data": contains_demo_data, "uses_real_cloud": False, "allows_shell_execution": False},
+        "dashboard": {"display_order": display_order, "badge": badge, "recommended_view": "resource-card"},
+    }
 
 
 def _observed_response(

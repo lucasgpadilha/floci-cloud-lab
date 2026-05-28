@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local Cloud Console</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08090a;
+      --panel: #0f1011;
+      --surface: rgba(255,255,255,0.035);
+      --surface-2: rgba(255,255,255,0.055);
+      --border: rgba(255,255,255,0.08);
+      --border-soft: rgba(255,255,255,0.05);
+      --text: #f7f8f8;
+      --muted: #8a8f98;
+      --subtle: #62666d;
+      --accent: #7170ff;
+      --accent-2: #5e6ad2;
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 18% -10%, rgba(113,112,255,.22), transparent 28rem),
+        radial-gradient(circle at 90% 10%, rgba(16,185,129,.11), transparent 24rem),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-feature-settings: "cv01", "ss03";
+      letter-spacing: -0.01em;
+    }
+    button, input, select { font: inherit; }
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      padding: 9px 12px;
+      transition: border-color .15s ease, background .15s ease, transform .15s ease;
+    }
+    button:hover { background: rgba(255,255,255,.075); border-color: rgba(255,255,255,.14); }
+    button:active { transform: translateY(1px); }
+    button.primary { background: linear-gradient(135deg, var(--accent-2), var(--accent)); border-color: rgba(130,143,255,.5); }
+    button.danger { border-color: rgba(239,68,68,.28); color: #fecaca; }
+    input, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(255,255,255,.025);
+      color: var(--text);
+      padding: 9px 11px;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: rgba(113,112,255,.55); box-shadow: 0 0 0 3px rgba(113,112,255,.12); }
+    .shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      border-right: 1px solid var(--border-soft);
+      background: rgba(15,16,17,.86);
+      backdrop-filter: blur(18px);
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .brand { display: flex; gap: 10px; align-items: center; padding: 4px 6px 14px; border-bottom: 1px solid var(--border-soft); }
+    .logo { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #7170ff, #10b981); box-shadow: 0 0 32px rgba(113,112,255,.24); }
+    .brand strong { display: block; font-weight: 510; letter-spacing: -0.04em; }
+    .brand span { color: var(--muted); font-size: 12px; }
+    nav { display: grid; gap: 6px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 9px;
+      color: #d0d6e0; text-decoration: none;
+      padding: 10px 11px; border-radius: 8px; border: 1px solid transparent;
+      font-size: 14px; font-weight: 510;
+    }
+    .nav-item.active, .nav-item:hover { background: rgba(255,255,255,.04); border-color: var(--border-soft); color: var(--text); }
+    .side-note { margin-top: auto; border: 1px solid rgba(16,185,129,.16); background: rgba(16,185,129,.055); border-radius: 12px; padding: 12px; color: #bff7dc; font-size: 12px; line-height: 1.45; }
+    main { min-width: 0; }
+    header.top {
+      position: sticky; top: 0; z-index: 10;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center;
+      padding: 16px 24px;
+      background: rgba(8,9,10,.78);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .title h1 { margin: 0; font-size: clamp(28px, 5vw, 46px); line-height: .95; font-weight: 510; letter-spacing: -0.06em; }
+    .title p { margin: 8px 0 0; color: var(--muted); max-width: 850px; line-height: 1.55; }
+    .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .badge, .pill {
+      display: inline-flex; align-items: center; gap: 7px; border-radius: 999px;
+      border: 1px solid var(--border); background: rgba(255,255,255,.035);
+      padding: 7px 10px; font-size: 12px; color: #d0d6e0; white-space: nowrap;
+    }
+    .badge.safe { border-color: rgba(16,185,129,.22); color: #a7f3d0; background: rgba(16,185,129,.06); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 18px currentColor; }
+    .dot.ok { background: var(--ok); }
+    .dot.err { background: var(--danger); }
+    .content { padding: 24px; display: grid; gap: 18px; }
+    .command-bar { display: grid; grid-template-columns: minmax(220px, 1.3fr) 170px 160px auto auto; gap: 10px; align-items: end; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+    .grid { display: grid; gap: 14px; }
+    .kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .two-col { grid-template-columns: minmax(0, 1.35fr) minmax(360px, .65fr); align-items: start; }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      box-shadow: inset 0 1px rgba(255,255,255,.035), 0 20px 50px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+    .panel-head { padding: 14px 15px; border-bottom: 1px solid var(--border-soft); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .panel-head h2, .panel-head h3 { margin: 0; font-size: 15px; font-weight: 590; letter-spacing: -0.02em; }
+    .panel-body { padding: 15px; }
+    .kpi { padding: 14px; }
+    .kpi span { color: var(--muted); font-size: 12px; display: block; margin-bottom: 8px; }
+    .kpi strong { font: 500 24px/1 var(--sans); letter-spacing: -0.05em; }
+    .kpi small { display: block; margin-top: 8px; color: var(--subtle); font-family: var(--mono); font-size: 11px; }
+    .resource-card { padding: 14px; display: grid; gap: 10px; min-height: 178px; }
+    .resource-card .type { color: var(--accent); font-family: var(--mono); font-size: 11px; }
+    .resource-card h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+    .resource-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { font: 400 11px/1 var(--mono); color: #d0d6e0; border: 1px solid var(--border-soft); border-radius: 999px; padding: 5px 7px; background: rgba(255,255,255,.025); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+    th { color: var(--muted); font-weight: 510; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+    tr:hover td { background: rgba(255,255,255,.025); }
+    .mono { font-family: var(--mono); font-size: 12px; color: #d0d6e0; }
+    .muted { color: var(--muted); }
+    .status { display: inline-flex; gap: 6px; align-items: center; border-radius: 999px; padding: 5px 8px; border: 1px solid var(--border-soft); font-size: 11px; }
+    .status.online, .status.processed, .status.available, .status.ready { color: #a7f3d0; border-color: rgba(16,185,129,.2); background: rgba(16,185,129,.055); }
+    .status.pending, .status.configured { color: #fde68a; border-color: rgba(245,158,11,.22); background: rgba(245,158,11,.055); }
+    .workflow { display: grid; gap: 10px; }
+    .step { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; color: var(--muted); }
+    .step b { color: var(--text); font-weight: 510; }
+    .step-num { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; background: rgba(113,112,255,.14); color: #c7d2fe; font-family: var(--mono); font-size: 11px; border: 1px solid rgba(113,112,255,.24); }
+    pre { margin: 0; white-space: pre-wrap; overflow: auto; max-height: 440px; color: #d0d6e0; font: 12px/1.55 var(--mono); }
+    .drawer { position: fixed; inset: 0 0 0 auto; width: min(620px, 100vw); transform: translateX(105%); transition: transform .22s ease; z-index: 50; background: rgba(15,16,17,.96); border-left: 1px solid var(--border); box-shadow: -30px 0 80px rgba(0,0,0,.36); display: grid; grid-template-rows: auto 1fr; }
+    .drawer.open { transform: translateX(0); }
+    .drawer header { padding: 16px; border-bottom: 1px solid var(--border-soft); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .drawer-content { padding: 16px; overflow: auto; display: grid; gap: 14px; }
+    .toast { position: fixed; right: 18px; bottom: 18px; z-index: 60; max-width: 440px; border: 1px solid var(--border); background: #111214; border-radius: 12px; padding: 12px 14px; color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.35); display: none; }
+    .toast.show { display: block; }
+    .empty { color: var(--muted); padding: 18px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; }
+    @media (max-width: 1100px) { .shell { grid-template-columns: 1fr; } aside { position: static; height: auto; } .kpis, .cards, .two-col, .command-bar { grid-template-columns: 1fr; } header.top { grid-template-columns: 1fr; } .toolbar { justify-content: flex-start; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><div class="logo" aria-hidden="true"></div><div><strong>Local Cloud Console</strong><span>Floci adapter · incubator</span></div></div>
+      <nav aria-label="Console sections">
+        <a class="nav-item active" href="#overview">⬡ Overview</a>
+        <a class="nav-item" href="#resources">▦ Resources</a>
+        <a class="nav-item" href="#objects">☁ Objects</a>
+        <a class="nav-item" href="#events">⌁ Events</a>
+        <a class="nav-item" href="#evidence">{} Evidence</a>
+      </nav>
+      <div class="side-note"><strong>Safety boundary</strong><br>No real AWS. No real credentials. No browser shell execution. Bounded local mutations only.</div>
+    </aside>
+
+    <main>
+      <header class="top">
+        <div class="title">
+          <h1>Lightweight cloud console for local emulators.</h1>
+          <p>Operational dashboard for Floci-backed AWS-shaped labs: resources, objects, event outbox, workflow proof, and portfolio evidence — bonito, leve e sem cloud bill.</p>
+        </div>
+        <div class="toolbar">
+          <span class="badge safe"><span class="dot ok"></span>Local only</span>
+          <span class="badge" id="endpoint-badge">127.0.0.1:8080</span>
+          <span class="badge" id="request-id">request: none</span>
+        </div>
+      </header>
+
+      <section class="content">
+        <section class="panel command-bar" id="overview" style="padding: 14px;">
+          <label>Local API URL<input id="api-url" value="http://127.0.0.1:8080" /></label>
+          <label>Owner<input id="owner" value="browser-demo" /></label>
+          <label>Category filter<input id="category" placeholder="optional" /></label>
+          <button class="primary" id="refresh">Refresh</button>
+          <button id="create-demo">Create demo object</button>
+          <button id="process-events">Process events</button>
+        </section>
+
+        <section class="grid kpis" aria-label="Dashboard KPIs">
+          <article class="panel kpi"><span>API</span><strong id="kpi-api">—</strong><small id="kpi-runtime">runtime</small></article>
+          <article class="panel kpi"><span>Emulator</span><strong id="kpi-emulator">—</strong><small id="kpi-endpoint">endpoint</small></article>
+          <article class="panel kpi"><span>Resources</span><strong id="kpi-resources">—</strong><small>local AWS equivalents</small></article>
+          <article class="panel kpi"><span>Objects</span><strong id="kpi-objects">—</strong><small>S3 + DynamoDB</small></article>
+          <article class="panel kpi"><span>Pending events</span><strong id="kpi-pending">—</strong><small>outbox queue</small></article>
+          <article class="panel kpi"><span>Last refresh</span><strong id="kpi-refresh">—</strong><small id="kpi-owner">owner</small></article>
+        </section>
+
+        <section class="grid cards" id="resources"></section>
+
+        <section class="grid two-col">
+          <section class="panel" id="objects">
+            <div class="panel-head"><h2>Object explorer</h2><span class="pill">GET /objects</span></div>
+            <div class="panel-body"><div style="overflow:auto"><table><thead><tr><th>Name</th><th>Category</th><th>Size</th><th>S3 key</th><th></th></tr></thead><tbody id="object-rows"></tbody></table></div></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h2>Workflow timeline</h2><span class="pill">local event-driven proof</span></div>
+            <div class="panel-body workflow">
+              <div class="step"><span class="step-num">1</span><div><b>Create object</b><br>API validates request and writes content to S3-compatible Floci storage.</div></div>
+              <div class="step"><span class="step-num">2</span><div><b>Index metadata</b><br>DynamoDB-compatible table stores owner/category/S3 key/sha/version data.</div></div>
+              <div class="step"><span class="step-num">3</span><div><b>Emit outbox event</b><br>ObjectCreated event records idempotency key and processing status.</div></div>
+              <div class="step"><span class="step-num">4</span><div><b>Process locally</b><br>Bounded local processor updates pending events without shelling out or touching real cloud.</div></div>
+            </div>
+          </section>
+        </section>
+
+        <section class="grid two-col">
+          <section class="panel" id="events">
+            <div class="panel-head"><h2>Event outbox</h2><div style="display:flex;gap:8px;align-items:center"><select id="event-status"><option value="">all</option><option value="pending">pending</option><option value="processed">processed</option></select><span class="pill">GET /events</span></div></div>
+            <div class="panel-body"><div style="overflow:auto"><table><thead><tr><th>Type</th><th>Status</th><th>Object</th><th>Attempts</th></tr></thead><tbody id="event-rows"></tbody></table></div></div>
+          </section>
+          <section class="panel" id="evidence">
+            <div class="panel-head"><h2>Evidence panel</h2><button id="copy-evidence">Copy JSON</button></div>
+            <div class="panel-body"><pre id="evidence-json">Waiting for refresh…</pre></div>
+          </section>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <aside class="drawer" id="drawer" aria-label="Object detail drawer">
+    <header><strong id="drawer-title">Object detail</strong><button id="drawer-close">Close</button></header>
+    <div class="drawer-content" id="drawer-content"></div>
+  </aside>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = { health: null, status: null, resources: null, objects: null, events: null, selectedObject: null };
+    const safeLocal = (url) => /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?/.test(url.trim());
+    const apiUrl = () => $('api-url').value.replace(/\/$/, '');
+    const owner = () => $('owner').value.trim() || 'browser-demo';
+
+    function text(tag, value, className) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      el.textContent = value == null || value === '' ? '—' : String(value);
+      return el;
+    }
+    function statusPill(value) {
+      const el = text('span', value || 'unknown', `status ${String(value || '').toLowerCase()}`);
+      return el;
+    }
+    function toast(message, isError = false) {
+      const el = $('toast');
+      el.textContent = message;
+      el.style.borderColor = isError ? 'rgba(239,68,68,.35)' : 'rgba(16,185,129,.28)';
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 4200);
+    }
+    function setRequestId(body) {
+      const id = body && body.request_id ? body.request_id : 'not returned';
+      $('request-id').textContent = `request: ${id}`;
+    }
+    async function request(path, options = {}) {
+      if (!safeLocal(apiUrl())) throw new Error('Blocked non-local API URL. Use localhost or 127.0.0.1.');
+      const response = await fetch(`${apiUrl()}${path}`, {
+        ...options,
+        headers: { 'content-type': 'application/json', 'x-floci-user': owner(), 'x-request-id': `console-${Date.now()}`, ...(options.headers || {}) },
+      });
+      const raw = await response.text();
+      const body = raw ? JSON.parse(raw) : {};
+      setRequestId(body);
+      if (!response.ok) throw Object.assign(new Error(body?.error?.message || `HTTP ${response.status}`), { body, status: response.status });
+      return body;
+    }
+    function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+    function renderKpis() {
+      const status = state.status || {};
+      const objects = state.objects?.data?.objects || [];
+      const events = state.events?.data?.events || [];
+      $('kpi-api').textContent = state.health?.ok ? 'Online' : 'Offline';
+      $('kpi-runtime').textContent = state.health?.runtime || 'local-floci';
+      $('kpi-emulator').textContent = status.emulator?.name || 'Floci';
+      $('kpi-endpoint').textContent = status.emulator?.endpoint || 'http://localhost:4566';
+      $('kpi-resources').textContent = state.resources?.summary?.count || state.resources?.resources?.length || 0;
+      $('kpi-objects').textContent = state.objects?.data?.count ?? objects.length;
+      $('kpi-pending').textContent = events.filter((event) => event.status === 'pending').length;
+      $('kpi-refresh').textContent = new Date().toLocaleTimeString();
+      $('kpi-owner').textContent = owner();
+      $('endpoint-badge').textContent = apiUrl();
+    }
+
+    function renderResources() {
+      const root = $('resources'); clear(root);
+      const resources = [...(state.resources?.resources || [])].sort((a,b) => (a.dashboard?.display_order || 99) - (b.dashboard?.display_order || 99));
+      if (!resources.length) { root.appendChild(text('div', 'No resources returned.', 'empty')); return; }
+      resources.forEach((res) => {
+        const card = document.createElement('article'); card.className = 'panel resource-card';
+        const top = document.createElement('div'); top.style.display = 'flex'; top.style.justifyContent = 'space-between'; top.style.gap = '8px';
+        top.append(text('span', res.dashboard?.badge || res.category, 'pill'), statusPill(res.status));
+        card.append(top, text('div', res.type, 'type'), text('h3', res.name), text('p', res.description));
+        const chips = document.createElement('div'); chips.className = 'chips';
+        (res.capabilities || []).slice(0, 4).forEach((cap) => chips.appendChild(text('span', cap, 'chip')));
+        card.appendChild(chips);
+        root.appendChild(card);
+      });
+    }
+
+    function renderObjects() {
+      const tbody = $('object-rows'); clear(tbody);
+      const objects = state.objects?.data?.objects || [];
+      if (!objects.length) { const row = tbody.insertRow(); const cell = row.insertCell(); cell.colSpan = 5; cell.appendChild(text('div', 'No objects found for this owner/category.', 'empty')); return; }
+      objects.forEach((obj) => {
+        const row = tbody.insertRow();
+        row.insertCell().append(text('strong', obj.name), document.createElement('br'), text('span', obj.object_id, 'mono'));
+        row.insertCell().appendChild(text('span', obj.category || obj.metadata?.category || 'none', 'chip'));
+        row.insertCell().appendChild(text('span', `${obj.size_bytes || 0} B`, 'mono'));
+        row.insertCell().appendChild(text('span', obj.s3_key || '—', 'mono'));
+        const btn = document.createElement('button'); btn.textContent = 'Inspect'; btn.addEventListener('click', () => inspectObject(obj.object_id));
+        row.insertCell().appendChild(btn);
+      });
+    }
+
+    function renderEvents() {
+      const tbody = $('event-rows'); clear(tbody);
+      const events = state.events?.data?.events || [];
+      if (!events.length) { const row = tbody.insertRow(); const cell = row.insertCell(); cell.colSpan = 4; cell.appendChild(text('div', 'No events returned.', 'empty')); return; }
+      events.forEach((event) => {
+        const row = tbody.insertRow();
+        row.insertCell().append(text('strong', event.event_type || 'Event'), document.createElement('br'), text('span', event.event_id, 'mono'));
+        row.insertCell().appendChild(statusPill(event.status));
+        row.insertCell().appendChild(text('span', event.object_id, 'mono'));
+        row.insertCell().appendChild(text('span', event.attempts ?? 0, 'mono'));
+      });
+    }
+
+    function updateEvidence() {
+      const evidence = { generated_at: new Date().toISOString(), api_url: apiUrl(), owner: owner(), safety: state.status?.safety, health: state.health, ops_status: state.status, resources: state.resources, objects: state.objects, events: state.events, selected_object: state.selectedObject };
+      $('evidence-json').textContent = JSON.stringify(evidence, null, 2);
+    }
+
+    async function refreshAll() {
+      try {
+        $('refresh').disabled = true;
+        const category = encodeURIComponent($('category').value.trim());
+        const eventStatus = encodeURIComponent($('event-status').value);
+        const objectPath = category ? `/objects?limit=10&category=${category}` : '/objects?limit=10';
+        const eventPath = eventStatus ? `/events?limit=10&status=${eventStatus}` : '/events?limit=10';
+        const [health, status, resources, objects, events] = await Promise.all([
+          request('/health'), request('/ops/status'), request('/ops/resources'), request(objectPath), request(eventPath),
+        ]);
+        Object.assign(state, { health, status, resources, objects, events });
+        renderKpis(); renderResources(); renderObjects(); renderEvents(); updateEvidence();
+        toast('Dashboard refreshed. Local stack braba no ar.');
+      } catch (error) {
+        toast(error.message || 'Refresh failed', true);
+        $('evidence-json').textContent = JSON.stringify({ error: error.message, body: error.body || null }, null, 2);
+      } finally {
+        $('refresh').disabled = false;
+      }
+    }
+
+    async function createDemoObject() {
+      try {
+        const stamp = new Date().toISOString();
+        const body = await request('/objects', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: `console-demo-${Date.now()}.md`,
+            content: `# Local Cloud Console demo\n\nCreated at ${stamp}. This object proves local S3 + DynamoDB + outbox event flow without real AWS.`,
+            content_type: 'text/markdown',
+            metadata: { source: 'local-cloud-console', category: $('category').value.trim() || 'console-demo', tier: 'senior-local' },
+          }),
+        });
+        state.selectedObject = body.data;
+        toast('Demo object created. Fluxo S3/DynamoDB/evento nervoso.');
+        await refreshAll();
+      } catch (error) { toast(error.message, true); }
+    }
+
+    async function processEvents() {
+      try {
+        const body = await request('/events/process?limit=10', { method: 'POST', body: '{}' });
+        toast(`Processed ${body.data?.processed_count || 0} pending events.`);
+        await refreshAll();
+      } catch (error) { toast(error.message, true); }
+    }
+
+    async function inspectObject(objectId) {
+      try {
+        const body = await request(`/objects/${encodeURIComponent(objectId)}`);
+        state.selectedObject = body.data;
+        $('drawer-title').textContent = body.data.name || objectId;
+        const root = $('drawer-content'); clear(root);
+        const summary = document.createElement('div'); summary.className = 'panel'; summary.style.padding = '14px';
+        [['Object ID', body.data.object_id], ['Owner', body.data.owner_id], ['Content type', body.data.content_type], ['Bucket', body.data.s3_bucket], ['S3 key', body.data.s3_key], ['SHA-256', body.data.sha256], ['Integrity', body.data.integrity_verified]].forEach(([k,v]) => {
+          const row = document.createElement('p'); row.style.margin = '0 0 10px'; row.append(text('span', `${k}: `, 'muted'), text('span', v, 'mono')); summary.appendChild(row);
+        });
+        const prePanel = document.createElement('div'); prePanel.className = 'panel'; prePanel.style.padding = '14px'; const pre = document.createElement('pre'); pre.textContent = JSON.stringify(body.data, null, 2); prePanel.appendChild(pre);
+        root.append(summary, prePanel); $('drawer').classList.add('open'); updateEvidence();
+      } catch (error) { toast(error.message, true); }
+    }
+
+    $('refresh').addEventListener('click', refreshAll);
+    $('create-demo').addEventListener('click', createDemoObject);
+    $('process-events').addEventListener('click', processEvents);
+    $('event-status').addEventListener('change', refreshAll);
+    $('drawer-close').addEventListener('click', () => $('drawer').classList.remove('open'));
+    $('copy-evidence').addEventListener('click', async () => { await navigator.clipboard.writeText($('evidence-json').textContent); toast('Evidence JSON copied.'); });
+    ['api-url', 'owner'].forEach((id) => {
+      const saved = localStorage.getItem(`lcc:${id}`); if (saved) $(id).value = saved;
+      $(id).addEventListener('change', () => { localStorage.setItem(`lcc:${id}`, $(id).value); refreshAll(); });
+    });
+    window.addEventListener('DOMContentLoaded', refreshAll);
+  </script>
+</body>
+</html>

@@ -87,6 +87,62 @@ def test_health_endpoint_returns_portfolio_status():
     assert body["request_id"] == "unit-request"
 
 
+def test_ops_status_endpoint_returns_ready():
+    handler = create_handler(repository=InMemoryRepository())
+
+    response = invoke(handler, "GET", "/ops/status")
+
+    assert response["statusCode"] == 200
+    body = parse_body(response)
+    assert body["status"] == "ready"
+    assert body["mode"] == "local"
+    assert body["environment"]["local_only"] is True
+    assert body["environment"]["emulator"] == "floci"
+    assert body["emulator"]["endpoint"] == "http://localhost:4566"
+    assert body["emulator"]["status"] == "online"
+    assert body["database"]["status"] == "online"
+    assert body["storage"]["engine"] == "S3 (Local)"
+    components = {component["id"]: component for component in body["components"]}
+    assert set(components) == {"api", "storage", "database", "observability"}
+    assert components["api"]["aws_equivalent"] == "AWS::Lambda::Function"
+    assert "event-outbox" in components["database"]["capabilities"]
+    assert body["safety"] == {
+        "local_only": True,
+        "uses_real_cloud": False,
+        "uses_real_credentials": False,
+        "allows_shell_execution": False,
+        "bounded_mutations_only": True,
+    }
+    assert body["dashboard"]["recommended_refresh_seconds"] == 5
+    assert body["dashboard"]["primary_actions"][1]["path"] == "/events/process?limit=10"
+    assert body["request_id"] == "unit-request"
+
+
+def test_ops_resources_endpoint_returns_known_resources():
+    handler = create_handler(repository=InMemoryRepository())
+
+    response = invoke(handler, "GET", "/ops/resources")
+
+    assert response["statusCode"] == 200
+    body = parse_body(response)
+    resources = body["resources"]
+    assert len(resources) == 4
+    by_id = {resource["id"]: resource for resource in resources}
+    assert set(by_id) == {"api-function", "objects-bucket", "metadata-table", "app-logs"}
+    assert by_id["objects-bucket"]["name"] == "floci-cloud-lab-local-objects"
+    assert by_id["objects-bucket"]["type"] == "AWS::S3::Bucket"
+    assert by_id["objects-bucket"]["aws_equivalent"]["service"] == "s3"
+    assert by_id["metadata-table"]["name"] == "floci-cloud-lab-local-metadata"
+    assert by_id["metadata-table"]["aws_equivalent"]["service"] == "dynamodb"
+    assert by_id["app-logs"]["name"] == "/floci-cloud-lab/local/app"
+    assert by_id["api-function"]["type"] == "AWS::Lambda::Function"
+    assert all(resource["status"] == "available" for resource in resources)
+    assert all(resource["safety"]["local_only"] is True for resource in resources)
+    assert body["summary"] == {"count": 4, "available": 4, "degraded": 0, "offline": 0, "local_only": True}
+    assert {category["id"] for category in body["categories"]} == {"compute", "storage", "database", "observability"}
+    assert body["request_id"] == "unit-request"
+
+
 def test_create_object_validates_required_name():
     handler = create_handler(repository=InMemoryRepository())
 
