@@ -1,10 +1,18 @@
-# Local Cloud Console Dashboard
+# Floci Studio — Local Workflow Debugger
 
-Reusable incubator slice for a lightweight, open-source-ready Local Cloud Console inside Floci Cloud Lab.
+Floci Studio is no longer framed as a generic local cloud dashboard. This incubator is the browser workbench for debugging cloud-shaped workflows that run fully on the local Floci emulator.
 
 ## Goal
 
-Visualize local cloud-emulator systems with a console-quality UI without becoming heavy like a full cloud provider console. The first adapter is Floci Cloud Lab; future adapters can target LocalStack, MinIO, DynamoDB Local, or Testcontainers-backed labs.
+Answer the professional debugging questions first:
+
+- What request started the flow?
+- Which local object/event artifacts were created?
+- Which processor step failed?
+- What exact reason caused the failure?
+- Can we export sanitized, local-only evidence for review?
+
+The first reference flow is the broken trace demo backed by `POST /ops/demo/broken-trace`.
 
 ## Quickstart
 
@@ -15,7 +23,7 @@ make floci-up
 make app-api-local
 ```
 
-2. Open the dashboard:
+2. Open Floci Studio:
 
 ```bash
 # Option A: open directly in your browser
@@ -30,19 +38,34 @@ python3 -m http.server 5174 -d app/local-cloud-console
 - API URL: `http://127.0.0.1:8080`
 - Owner: `browser-demo`
 
-## Features
+4. Click `Create broken trace`.
 
-- Local-only badge and endpoint guard.
-- API/emulator/resource/object/event KPIs.
-- Resource cards with AWS-equivalent mappings.
-- Object explorer with category filter and object detail drawer.
-- Event outbox viewer with status filter.
-- Safe bounded actions:
-  - create demo object through `POST /objects`
-  - process local pending events through `POST /events/process?limit=10`
-- JSON evidence panel with copy button.
-- No browser shell execution.
-- No real AWS credentials.
+Expected result: a failed local processor trace with failure code `processor.validation_failed`, causal steps, reproduction commands, and a sanitized report export.
+
+## Product principles
+
+- Debugger first, dashboard second.
+- Trace is the primary object.
+- Causal flow beats resource inventory.
+- Local-only safety is explicit.
+- Browser never executes shell commands.
+- Reports are sanitized before export.
+
+## Main endpoints
+
+- `POST /ops/demo/broken-trace`
+- `GET /ops/traces?status=failed&limit=10`
+- `GET /ops/traces/{trace_id}`
+- `GET /ops/report?trace_id={trace_id}`
+- `GET /objects/{object_id}` for supporting object evidence
+
+## Safety boundary
+
+- No real AWS.
+- No real credentials.
+- Local endpoint guard blocks non-local API URLs.
+- Commands are displayed for copy/review only.
+- Reports surface `sanitized`, `local_only`, `uses_real_cloud`, and `allows_shell_execution` flags.
 
 ## API contract
 
@@ -50,14 +73,6 @@ See:
 
 `docs/contracts/local-cloud-console-api.md`
 
-## Open-source extraction note
+## Extraction note
 
-This folder is intentionally an incubator. Once the adapter contract stabilizes, extract it into a standalone repository such as `local-cloud-console` and keep Floci Cloud Lab as the first reference adapter/demo.
-
-Before extraction, keep these constraints:
-
-- No dependency on Floci internals beyond HTTP responses.
-- No real cloud account assumptions.
-- No hosted CI requirement.
-- No static real credentials.
-- No arbitrary shell execution from the browser.
+This folder remains an incubator, but the extraction target is now sharper than “local cloud console”: a reusable local workflow debugger for emulator-backed cloud labs. Future adapters can target Floci, LocalStack, MinIO, DynamoDB Local, or Testcontainers-backed labs as long as they implement the trace/report contract.
