@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local Cloud Workbench — Trace-first Concept</title>
+  <style>
+    :root { --bg:#0b0c0e; --panel:#111317; --panel2:#151820; --line:#252936; --text:#f4f4f5; --muted:#8b92a1; --soft:#626b7a; --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --blue:#60a5fa; --violet:#8b5cf6; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --sans: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+    .app { height:100vh; display:grid; grid-template-columns:220px minmax(420px, 1fr) 470px; grid-template-rows:58px 1fr 120px; }
+    header { grid-column:1 / -1; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; padding:0 18px; background:#0e1013; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .mark { width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--blue),var(--violet)); }
+    .brand b { font-weight:600; letter-spacing:-.03em; }
+    .brand span, .muted { color:var(--muted); }
+    .top-actions { display:flex; gap:8px; align-items:center; }
+    .pill { border:1px solid var(--line); border-radius:999px; padding:6px 9px; color:#cbd5e1; font-size:12px; background:#11141a; display:inline-flex; gap:7px; align-items:center; white-space:nowrap; }
+    .dot { width:7px; height:7px; border-radius:999px; background:var(--green); box-shadow:0 0 18px currentColor; }
+    button { background:#151922; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:8px 10px; font:500 12px var(--sans); }
+    button.primary { border-color:#35548a; background:#17233a; color:#dbeafe; }
+    aside { border-right:1px solid var(--line); padding:14px 10px; background:#0e1013; }
+    nav { display:grid; gap:4px; }
+    nav a { color:#b9c0cc; text-decoration:none; padding:9px 10px; border-radius:8px; font-size:13px; display:flex; justify-content:space-between; }
+    nav a.active, nav a:hover { background:#171a22; color:white; }
+    .section-title { color:#687083; font:700 10px var(--sans); text-transform:uppercase; letter-spacing:.1em; padding:12px 10px 7px; }
+    main { overflow:auto; padding:16px; }
+    .session { border:1px solid var(--line); border-radius:12px; background:linear-gradient(180deg,#131722,#101217); padding:14px; display:grid; grid-template-columns:1fr auto; gap:12px; margin-bottom:14px; }
+    .session h1 { margin:0; font-size:20px; letter-spacing:-.04em; }
+    .session p { margin:6px 0 0; color:var(--muted); font-size:13px; }
+    .capabilities { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; }
+    .cap { font:500 11px var(--mono); color:#cbd5e1; border:1px solid var(--line); background:#0e1118; padding:5px 7px; border-radius:999px; }
+    .trace-list { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--panel); }
+    .toolbar { padding:10px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; justify-content:space-between; }
+    input { background:#0d0f14; border:1px solid var(--line); border-radius:8px; color:var(--text); padding:8px 10px; min-width:240px; }
+    .trace-row { display:grid; grid-template-columns:95px 1fr 88px 88px; gap:12px; align-items:center; padding:12px; border-bottom:1px solid #1f2430; cursor:pointer; }
+    .trace-row:hover, .trace-row.selected { background:#171b25; }
+    .trace-row:last-child { border-bottom:0; }
+    .method { font:700 11px var(--mono); color:#bfdbfe; }
+    .path { font:500 13px var(--mono); color:#f8fafc; }
+    .sub { color:var(--muted); font-size:12px; margin-top:3px; }
+    .status { font:700 10px var(--mono); text-transform:uppercase; border-radius:999px; padding:5px 7px; width:max-content; }
+    .processed { color:#bbf7d0; background:#12251a; border:1px solid #1e4d2d; }
+    .pending { color:#fde68a; background:#2a210d; border:1px solid #5a410f; }
+    .failed { color:#fecaca; background:#2a1111; border:1px solid #5a1f1f; }
+    .inspector { border-left:1px solid var(--line); background:#0e1013; overflow:auto; padding:16px; }
+    .inspector h2 { margin:0; font-size:18px; letter-spacing:-.03em; }
+    .kv { display:grid; grid-template-columns:130px 1fr; gap:8px; font-size:12px; padding:10px 0; border-bottom:1px solid #1d222d; }
+    .kv b { color:#a1a9b8; font-weight:500; }
+    .kv span { font-family:var(--mono); color:#d5d9e2; word-break:break-all; }
+    .timeline { margin-top:18px; display:grid; gap:10px; }
+    .step { display:grid; grid-template-columns:26px 1fr; gap:10px; }
+    .step .num { width:26px; height:26px; border:1px solid #263247; border-radius:999px; display:grid; place-items:center; color:#bfdbfe; font:700 11px var(--mono); background:#111827; }
+    .step-card { border:1px solid var(--line); border-radius:10px; padding:10px; background:#12151d; }
+    .step-card b { display:flex; justify-content:space-between; font-size:13px; }
+    .step-card p { margin:7px 0 0; color:var(--muted); font-size:12px; line-height:1.45; }
+    .code { margin-top:8px; background:#080a0f; border:1px solid #1d2230; border-radius:8px; padding:9px; font:11px/1.5 var(--mono); color:#cbd5e1; overflow:auto; }
+    .topology { grid-column:1 / -1; border-top:1px solid var(--line); background:#0e1013; padding:14px 18px; display:flex; align-items:center; gap:10px; overflow:auto; }
+    .node { border:1px solid var(--line); background:#121620; border-radius:10px; padding:10px 12px; min-width:130px; }
+    .node b { display:block; font-size:12px; }
+    .node span { color:var(--muted); font:11px var(--mono); }
+    .arrow { color:#424a5a; }
+    .report-box { margin-top:18px; border:1px solid var(--line); border-radius:12px; padding:12px; background:#11141b; }
+    .report-box h3 { margin:0 0 8px; font-size:13px; }
+    @media (max-width:1100px){ .app{grid-template-columns:1fr; grid-template-rows:auto auto auto auto;} aside,.inspector{border:0;} .topology{grid-column:1;} }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand"><div class="mark"></div><div><b>Local Cloud Workbench</b><br><span>trace, debug, and report emulator workflows</span></div></div>
+      <div class="top-actions"><span class="pill"><span class="dot"></span>Floci adapter online</span><span class="pill">local only</span><button>Copy endpoint</button><button class="primary">Create demo trace</button></div>
+    </header>
+    <aside>
+      <div class="section-title">Workbench</div>
+      <nav><a class="active" href="#">Traces <span>8</span></a><a href="#">Topology <span>6</span></a><a href="#">Data <span>42</span></a><a href="#">Events <span>3</span></a><a href="#">Logs <span>live</span></a><a href="#">Report <span>md</span></a></nav>
+      <div class="section-title">Safe actions</div>
+      <nav><a href="#">Seed demo</a><a href="#">Process next 10</a><a href="#">Export report</a><a href="#">Reset namespace</a></nav>
+    </aside>
+    <main>
+      <section class="session">
+        <div><h1>Lab session: browser-demo / local</h1><p>Not a fake AWS console. This is a local workflow inspector: request → storage → metadata → outbox → processor.</p><div class="capabilities"><span class="cap">object_store</span><span class="cap">metadata_store</span><span class="cap">event_outbox</span><span class="cap">bounded_replay</span><span class="cap">report_export</span><span class="cap">no_shell</span></div></div>
+        <div><span class="pill"><span class="dot"></span>ready</span></div>
+      </section>
+      <section class="trace-list">
+        <div class="toolbar"><strong>Recent workflow traces</strong><input placeholder="Filter by request id, object id, status…" /></div>
+        <div class="trace-row selected"><div><span class="method">POST</span><div class="sub">/objects</div></div><div><div class="path">obj_755d2bec…</div><div class="sub">stored markdown → metadata indexed → event processed</div></div><span class="status processed">processed</span><span class="sub">182 ms</span></div>
+        <div class="trace-row"><div><span class="method">POST</span><div class="sub">/events/process</div></div><div><div class="path">evt_43bf89aa…</div><div class="sub">processor attempted, pending queue reduced by 3</div></div><span class="status processed">processed</span><span class="sub">64 ms</span></div>
+        <div class="trace-row"><div><span class="method">POST</span><div class="sub">/objects</div></div><div><div class="path">obj_a14db168…</div><div class="sub">object stored, outbox event still pending</div></div><span class="status pending">pending</span><span class="sub">96 ms</span></div>
+        <div class="trace-row"><div><span class="method">POST</span><div class="sub">/objects</div></div><div><div class="path">validation_error</div><div class="sub">payload rejected: missing name</div></div><span class="status failed">failed</span><span class="sub">12 ms</span></div>
+      </section>
+    </main>
+    <section class="inspector">
+      <h2>Trace detail</h2><p class="muted">Selected trace shows the actual causal chain. No ornamental KPI. No cloud cosplay.</p>
+      <div class="kv"><b>trace id</b><span>local-3adc5fa302b744bc89470ae8850d0a36</span></div>
+      <div class="kv"><b>object id</b><span>obj_755d2bec9f084430953575a87673dc5f</span></div>
+      <div class="kv"><b>s3 key</b><span>objects/browser-demo/obj_755d2bec.../console-validation-demo.md</span></div>
+      <div class="kv"><b>event</b><span>ObjectCreated · processed · attempts=1</span></div>
+      <div class="timeline">
+        <div class="step"><div class="num">1</div><div class="step-card"><b>API request received <span class="status processed">ok</span></b><p>POST /objects accepted from owner browser-demo.</p><div class="code">curl -H 'x-floci-user: browser-demo' http://127.0.0.1:8080/objects</div></div></div>
+        <div class="step"><div class="num">2</div><div class="step-card"><b>Payload validated <span class="status processed">ok</span></b><p>Content type text/markdown, metadata category console-demo.</p></div></div>
+        <div class="step"><div class="num">3</div><div class="step-card"><b>Object stored <span class="status processed">ok</span></b><p>Content written to local S3-compatible Floci storage.</p></div></div>
+        <div class="step"><div class="num">4</div><div class="step-card"><b>Metadata indexed <span class="status processed">ok</span></b><p>DynamoDB-compatible metadata row links owner, category, object id and S3 key.</p></div></div>
+        <div class="step"><div class="num">5</div><div class="step-card"><b>Outbox processed <span class="status processed">ok</span></b><p>ObjectCreated event processed by bounded local action, no shell execution.</p></div></div>
+      </div>
+      <div class="report-box"><h3>Run report</h3><p class="muted">Export sanitized Markdown/JSON for portfolio, bug report, or OSS issue.</p><button class="primary">Export trace report</button></div>
+    </section>
+    <section class="topology">
+      <div class="node"><b>Browser/App</b><span>localhost client</span></div><div class="arrow">→</div><div class="node"><b>API adapter</b><span>127.0.0.1:8080</span></div><div class="arrow">→</div><div class="node"><b>Object store</b><span>S3-compatible</span></div><div class="arrow">→</div><div class="node"><b>Metadata</b><span>DynamoDB-compatible</span></div><div class="arrow">→</div><div class="node"><b>Outbox</b><span>ObjectCreated</span></div><div class="arrow">→</div><div class="node"><b>Processor</b><span>bounded local action</span></div>
+    </section>
+  </div>
+</body>
+</html>
