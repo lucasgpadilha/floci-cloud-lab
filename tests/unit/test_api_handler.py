@@ -57,13 +57,14 @@ class InMemoryRepository:
         return {"processed_count": len(processed), "events": processed}
 
 
-def invoke(handler, method, path, body=None, headers=None):
+def invoke(handler, method, path, body=None, headers=None, query=None):
     event = {
         "version": "2.0",
         "routeKey": f"{method} {path}",
         "rawPath": path,
         "requestContext": {"requestId": "unit-request", "http": {"method": method, "path": path}},
         "headers": headers or {},
+        "queryStringParameters": query or {},
         "body": json.dumps(body) if isinstance(body, dict) else body,
         "isBase64Encoded": False,
     }
@@ -141,6 +142,115 @@ def test_ops_resources_endpoint_returns_known_resources():
     assert body["summary"] == {"count": 4, "available": 4, "degraded": 0, "offline": 0, "local_only": True}
     assert {category["id"] for category in body["categories"]} == {"compute", "storage", "database", "observability"}
     assert body["request_id"] == "unit-request"
+
+
+def test_ops_session_endpoint_describes_debugging_wedge():
+    handler = create_handler(repository=InMemoryRepository())
+
+    response = invoke(handler, "GET", "/ops/session", headers={"x-floci-user": "lucas"})
+
+    assert response["statusCode"] == 200
+    body = parse_body(response)
+    assert body["session"]["id"] == "local-lucas"
+    assert body["session"]["mode"] == "local"
+    assert body["positioning"] == "local-cloud-workflow-debugger"
+    assert body["adapter"]["name"] == "floci"
+    assert body["adapter"]["endpoint"] == "http://localhost:4566"
+    assert body["safety"]["uses_real_cloud"] is False
+    assert body["safety"]["allows_shell_execution"] is False
+    capability_ids = {capability["id"] for capability in body["capabilities"]}
+    assert {"flow-traces", "payload-inspection", "bounded-replay", "namespace-reset", "report-export"}.issubset(capability_ids)
+    assert [node["id"] for node in body["service_map"]] == ["client", "api", "object-store", "metadata-store", "event-outbox", "processor"]
+    assert body["request_id"] == "unit-request"
+
+
+def test_demo_trace_endpoint_creates_replayable_flow_trace():
+    repo = InMemoryRepository()
+    handler = create_handler(repository=repo)
+
+    response = invoke(handler, "POST", "/ops/demo/trace", headers={"x-floci-user": "lucas"})
+
+    assert response["statusCode"] == 201
+    body = parse_body(response)
+    trace = body["trace"]
+    assert trace["id"].startswith("trace_obj_test123")
+    assert trace["owner_id"] == "lucas"
+    assert trace["status"] == "complete"
+    assert trace["summary"] == "request stored object, indexed metadata, emitted event, processed outbox"
+    assert trace["artifact"]["object_id"] == "obj_test123"
+    assert trace["artifact"]["event_id"] == "evt_test123"
+    assert [step["id"] for step in trace["steps"]] == ["request", "payload", "object-store", "metadata", "outbox", "processor"]
+    assert all(step["status"] == "ok" for step in trace["steps"])
+    assert trace["commands"][0]["label"] == "replay object create"
+    assert "curl" in trace["commands"][0]["command"]
+    assert body["request_id"] == "unit-request"
+
+    events = repo.list_events(owner_id="lucas")
+    assert events["events"][0]["status"] == "processed"
+
+
+def test_ops_traces_endpoint_returns_recent_trace_summaries_from_events():
+    repo = InMemoryRepository()
+    repo.create_object(owner_id="lucas", name="demo.md", content="hello", content_type="text/markdown", metadata={"category": "demo"})
+    handler = create_handler(repository=repo)
+
+    response = invoke(handler, "GET", "/ops/traces", headers={"x-floci-user": "lucas"})
+
+    assert response["statusCode"] == 200
+    body = parse_body(response)
+    assert body["data"]["count"] == 1
+    trace = body["data"]["traces"][0]
+    assert trace["id"] == "trace_obj_test123_evt_test123"
+    assert trace["status"] == "pending"
+    assert trace["method"] == "POST"
+    assert trace["path"] == "/objects"
+    assert trace["artifact"]["object_id"] == "obj_test123"
+    assert trace["artifact"]["event_id"] == "evt_test123"
+    assert trace["links"]["detail"] == "/ops/traces/trace_obj_test123_evt_test123"
+
+
+def test_ops_trace_detail_endpoint_returns_causal_steps():
+    repo = InMemoryRepository()
+    repo.create_object(owner_id="lucas", name="demo.md", content="hello", content_type="text/markdown", metadata={"category": "demo"})
+    handler = create_handler(repository=repo)
+
+    response = invoke(handler, "GET", "/ops/traces/trace_obj_test123_evt_test123", headers={"x-floci-user": "lucas"})
+
+    assert response["statusCode"] == 200
+    trace = parse_body(response)["trace"]
+    assert trace["id"] == "trace_obj_test123_evt_test123"
+    assert trace["status"] == "pending"
+    assert trace["steps"][-1]["id"] == "processor"
+    assert trace["steps"][-1]["status"] == "waiting"
+    assert trace["commands"][1]["label"] == "process pending events"
+    assert trace["commands"][1]["kind"] == "curl"
+    assert "/events/process" in trace["commands"][1]["command"]
+
+
+def test_ops_trace_report_endpoint_returns_sanitized_report():
+    repo = InMemoryRepository()
+    repo.create_object(owner_id="lucas", name="demo.md", content="hello", content_type="text/markdown", metadata={"category": "demo"})
+    handler = create_handler(repository=repo)
+
+    response = invoke(handler, "GET", "/ops/report", headers={"x-floci-user": "lucas"})
+
+    assert response["statusCode"] == 200
+    body = parse_body(response)
+    assert body["report"]["format"] == "floci.trace-report.v1"
+    assert body["report"]["trace"]["id"] == "trace_obj_test123_evt_test123"
+    assert body["report"]["safety"]["sanitized"] is True
+    assert body["report"]["reproduction"]["local_only"] is True
+
+
+def test_ops_trace_report_endpoint_can_select_trace_id():
+    repo = InMemoryRepository()
+    repo.create_object(owner_id="lucas", name="demo.md", content="hello", content_type="text/markdown", metadata={"category": "demo"})
+    handler = create_handler(repository=repo)
+
+    response = invoke(handler, "GET", "/ops/report", headers={"x-floci-user": "lucas"}, query={"trace_id": "trace_obj_test123_evt_test123"})
+
+    assert response["statusCode"] == 200
+    assert parse_body(response)["report"]["trace"]["id"] == "trace_obj_test123_evt_test123"
 
 
 def test_create_object_validates_required_name():

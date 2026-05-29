@@ -13,6 +13,9 @@ from app.backend.functions.observability import (
     monotonic_ms,
     structured_log,
 )
+from app.backend.functions.ops.reports import build_sanitized_trace_report
+from app.backend.functions.ops.session import build_ops_session
+from app.backend.functions.ops.traces import TraceEvent, build_trace_detail, build_trace_list, find_trace_event
 from app.backend.functions.repository import ObjectRepository, repository_from_env
 
 JsonDict = dict[str, Any]
@@ -64,6 +67,49 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
             if method == "GET" and path == "/ops/resources":
                 response_body = _ops_resources_response(request_id)
                 return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/session":
+                response_body = build_ops_session(request_id=request_id, owner_id=owner_id)
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/traces":
+                query = _query_parameters_from_event(event)
+                events = _trace_events(active_repo.list_events(owner_id=owner_id, status=query.get("status"), limit=_limit_from_query(query))["events"])
+                response_body = {"data": build_trace_list(events), "request_id": request_id}
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path.startswith("/ops/traces/"):
+                trace_id = path.removeprefix("/ops/traces/").strip()
+                if not trace_id:
+                    raise BadRequest("validation_error", "trace_id is required")
+                events = _trace_events(active_repo.list_events(owner_id=owner_id, limit=100)["events"])
+                trace_event = find_trace_event(trace_id=trace_id, events=events)
+                if not trace_event:
+                    raise NotFound(f"trace {trace_id} was not found")
+                response_body = {"trace": build_trace_detail(trace_event, owner_id=owner_id), "request_id": request_id}
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/report":
+                query = _query_parameters_from_event(event)
+                events = _trace_events(active_repo.list_events(owner_id=owner_id, limit=100)["events"])
+                trace_event = find_trace_event(trace_id=query["trace_id"], events=events) if query.get("trace_id") else (events[0] if events else None)
+                if not trace_event:
+                    raise NotFound("no trace was found for report export")
+                trace = build_trace_detail(trace_event, owner_id=owner_id)
+                response_body = {"report": build_sanitized_trace_report(trace=trace, request_id=request_id), "request_id": request_id}
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "POST" and path == "/ops/demo/trace":
+                record = active_repo.create_object(
+                    owner_id=owner_id,
+                    name="floci-studio-demo.md",
+                    content="# Floci Studio demo\n\nThis object was created by a bounded local trace demo.",
+                    content_type="text/markdown",
+                    metadata={"category": "flow-demo", "source": "ops-demo-trace"},
+                )
+                active_repo.process_pending_events(owner_id=owner_id, limit=1)
+                response_body = {"trace": _trace_from_record(record, owner_id=owner_id, processed=True), "request_id": request_id}
+                return _observed_response(201, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
 
             if method == "POST" and path == "/objects":
                 _require_json_content_type(event)
@@ -390,6 +436,18 @@ def _resource(
         "safety": {"local_only": True, "contains_demo_data": contains_demo_data, "uses_real_cloud": False, "allows_shell_execution": False},
         "dashboard": {"display_order": display_order, "badge": badge, "recommended_view": "resource-card"},
     }
+
+
+def _trace_events(events: list[JsonDict]) -> list[TraceEvent]:
+    return [TraceEvent.from_repository_event(event) for event in events]
+
+
+def _trace_from_record(record: JsonDict, *, owner_id: str, processed: bool) -> JsonDict:
+    event = dict(record.get("event") or {})
+    if processed:
+        event["status"] = "processed"
+        event["attempts"] = max(int(event.get("attempts") or 0), 1)
+    return build_trace_detail(TraceEvent.from_repository_event(event), owner_id=owner_id)
 
 
 def _observed_response(

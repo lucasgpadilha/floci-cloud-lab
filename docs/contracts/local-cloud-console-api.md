@@ -1,6 +1,6 @@
-# Local Cloud Console API Contract
+# Floci Studio Local Workflow API Contract
 
-This contract defines the HTTP boundary between the reusable Local Cloud Console dashboard and a local cloud-emulator adapter. The first adapter is Floci Cloud Lab.
+This contract defines the HTTP boundary between Floci Studio and a local cloud-emulator adapter. The first adapter is Floci Cloud Lab. The contract is trace/debugger-first: UI clients should build around sessions, traces, reports, and bounded local actions rather than generic dashboard metrics.
 
 ## Safety and scope
 
@@ -136,6 +136,106 @@ Returns local resources and AWS-equivalent mappings.
   "request_id": "..."
 }
 ```
+
+### `GET /ops/session`
+
+Returns the product-level debugging session contract. This is the preferred endpoint for Studio-style clients because it describes adapter identity, safe capabilities, and the canonical service map without pretending to be a full AWS Console.
+
+```json
+{
+  "session": { "id": "local-browser-demo", "owner_id": "browser-demo", "mode": "local", "scope": "disposable-emulator-workflow" },
+  "positioning": "local-cloud-workflow-debugger",
+  "adapter": { "name": "floci", "endpoint": "http://localhost:4566", "runtime": "aws-compatible-local-emulator" },
+  "safety": { "local_only": true, "uses_real_cloud": false, "uses_real_credentials": false, "allows_shell_execution": false, "bounded_mutations_only": true },
+  "capabilities": [
+    { "id": "flow-traces", "label": "Flow traces" },
+    { "id": "payload-inspection", "label": "Payload inspection" },
+    { "id": "bounded-replay", "label": "Bounded replay" },
+    { "id": "namespace-reset", "label": "Namespace reset" },
+    { "id": "report-export", "label": "Report export" }
+  ],
+  "service_map": [
+    { "id": "client", "label": "Client", "kind": "http-client" },
+    { "id": "api", "label": "API adapter", "kind": "lambda-style-handler" },
+    { "id": "object-store", "label": "Object store", "kind": "s3-compatible" },
+    { "id": "metadata-store", "label": "Metadata store", "kind": "dynamodb-compatible" },
+    { "id": "event-outbox", "label": "Event outbox", "kind": "local-event-store" },
+    { "id": "processor", "label": "Processor", "kind": "bounded-local-action" }
+  ],
+  "request_id": "..."
+}
+```
+
+### `GET /ops/traces?limit={limit}&status={status}`
+
+Returns recent workflow trace summaries derived from local object/outbox events.
+
+```json
+{
+  "data": {
+    "count": 1,
+    "traces": [
+      {
+        "id": "trace_obj_..._evt_...",
+        "owner_id": "browser-demo",
+        "status": "pending",
+        "method": "POST",
+        "path": "/objects",
+        "summary": "request stored object, indexed metadata, emitted event, awaiting processor",
+        "artifact": { "object_id": "obj_...", "event_id": "evt_...", "event_type": "ObjectCreated" },
+        "links": { "detail": "/ops/traces/trace_obj_..._evt_..." }
+      }
+    ]
+  },
+  "request_id": "..."
+}
+```
+
+### `GET /ops/traces/{trace_id}`
+
+Returns a causal trace detail with steps and copyable commands.
+
+```json
+{
+  "trace": {
+    "id": "trace_obj_..._evt_...",
+    "status": "pending",
+    "steps": [
+      { "id": "request", "label": "API request received", "status": "ok" },
+      { "id": "payload", "label": "Payload validated", "status": "ok" },
+      { "id": "object-store", "label": "Object stored", "status": "ok" },
+      { "id": "metadata", "label": "Metadata indexed", "status": "ok" },
+      { "id": "outbox", "label": "Outbox event emitted", "status": "ok" },
+      { "id": "processor", "label": "Outbox processed", "status": "waiting" }
+    ],
+    "commands": [
+      { "label": "replay object create", "command": "curl ... /objects" },
+      { "label": "process pending events", "command": "curl ... /events/process?limit=10" }
+    ]
+  },
+  "request_id": "..."
+}
+```
+
+### `GET /ops/report?trace_id={trace_id}`
+
+Exports a sanitized portfolio-ready trace report. If `trace_id` is omitted, the most recent trace is used.
+
+```json
+{
+  "report": {
+    "format": "floci.trace-report.v1",
+    "trace": { "id": "trace_obj_..._evt_...", "status": "pending", "steps": [] },
+    "safety": { "sanitized": true, "contains_real_credentials": false, "local_only": true, "allows_shell_execution": false },
+    "reproduction": { "local_only": true, "requires_real_cloud": false, "commands": [] }
+  },
+  "request_id": "..."
+}
+```
+
+### `POST /ops/demo/trace`
+
+Creates a deterministic bounded local flow for demos and returns the complete trace. This endpoint is safe only because it uses local demo data, local-only storage, and the existing bounded event processor.
 
 ### `GET /objects?limit={limit}&cursor={cursor}&category={category}`
 
