@@ -14,7 +14,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from app.backend.functions.events import build_object_created_event, mark_event_processed, public_event
+from app.backend.functions.events import build_object_created_event, mark_event_failed, mark_event_processed, public_event
 from app.backend.functions.storage import (
     build_object_key,
     build_s3_metadata,
@@ -66,6 +66,8 @@ class ObjectRepository(Protocol):
     def list_events(self, *, owner_id: str, status: str | None = None, limit: int = DEFAULT_PAGE_LIMIT) -> dict[str, Any]: ...
 
     def process_pending_events(self, *, owner_id: str, limit: int = DEFAULT_PAGE_LIMIT) -> dict[str, Any]: ...
+
+    def mark_event_failed(self, *, owner_id: str, event_id: str, reason: str, code: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -277,6 +279,18 @@ class AwsObjectRepository:
             self._table.put_item(Item=updated)
             processed.append(_to_json_safe(public_event(updated)))
         return {"processed_count": len(processed), "events": processed}
+
+    def mark_event_failed(self, *, owner_id: str, event_id: str, reason: str, code: str) -> dict[str, Any]:
+        response = self._table.query(
+            KeyConditionExpression=Key("pk").eq(f"OWNER#{owner_id}") & Key("sk").begins_with("EVENT#"),
+            ConsistentRead=True,
+        )
+        for event in response.get("Items", []):
+            if event.get("event_id") == event_id:
+                updated = mark_event_failed(event, reason=reason, code=code)
+                self._table.put_item(Item=updated)
+                return _to_json_safe(public_event(updated))
+        raise KeyError(f"event {event_id} was not found")
 
 
 def build_object_record(record_input: ObjectRecordInput) -> dict[str, Any]:

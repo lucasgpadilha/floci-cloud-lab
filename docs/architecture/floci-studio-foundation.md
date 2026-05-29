@@ -66,6 +66,7 @@ Reports must remain:
 - `GET /ops/traces/{trace_id}`
 - `GET /ops/report?trace_id=`
 - `POST /ops/demo/trace`
+- `POST /ops/demo/broken-trace`
 
 ## Expansion pattern
 

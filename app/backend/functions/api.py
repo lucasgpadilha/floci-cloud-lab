@@ -111,6 +111,26 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
                 response_body = {"trace": _trace_from_record(record, owner_id=owner_id, processed=True), "request_id": request_id}
                 return _observed_response(201, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
 
+            if method == "POST" and path == "/ops/demo/broken-trace":
+                record = active_repo.create_object(
+                    owner_id=owner_id,
+                    name="broken-order-event.json",
+                    content='{"order_id":"demo-1001","total":42}',
+                    content_type="application/json",
+                    metadata={"category": "broken-flow-demo", "source": "ops-demo-broken-trace", "expected_metadata": "customer_id"},
+                )
+                event_id = str((record.get("event") or {}).get("event_id", ""))
+                if not event_id:
+                    raise BadRequest("validation_error", "demo trace event was not created")
+                failed_event = active_repo.mark_event_failed(
+                    owner_id=owner_id,
+                    event_id=event_id,
+                    code="processor.validation_failed",
+                    reason="processor rejected payload: missing required metadata customer_id",
+                )
+                response_body = {"trace": build_trace_detail(TraceEvent.from_repository_event(failed_event), owner_id=owner_id), "request_id": request_id}
+                return _observed_response(201, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
             if method == "POST" and path == "/objects":
                 _require_json_content_type(event)
                 payload = _json_body(event)

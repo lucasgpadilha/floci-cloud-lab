@@ -56,6 +56,17 @@ class InMemoryRepository:
                 processed.append(dict(event))
         return {"processed_count": len(processed), "events": processed}
 
+    def mark_event_failed(self, *, owner_id, event_id, reason, code):
+        for event in self.events:
+            if event["owner_id"] == owner_id and event["event_id"] == event_id:
+                event["status"] = "failed"
+                event["attempts"] = max(int(event.get("attempts") or 0), 1)
+                event["failure"] = {"code": code, "reason": reason, "retryable": True}
+                event.setdefault("detail", {})["failure_code"] = code
+                event.setdefault("detail", {})["failure_reason"] = reason
+                return dict(event)
+        raise AssertionError(f"event {event_id} not found")
+
 
 def invoke(handler, method, path, body=None, headers=None, query=None):
     event = {
@@ -251,6 +262,45 @@ def test_ops_trace_report_endpoint_can_select_trace_id():
 
     assert response["statusCode"] == 200
     assert parse_body(response)["report"]["trace"]["id"] == "trace_obj_test123_evt_test123"
+
+
+def test_broken_trace_demo_creates_failed_flow_that_is_reportable():
+    repo = InMemoryRepository()
+    handler = create_handler(repository=repo)
+
+    response = invoke(handler, "POST", "/ops/demo/broken-trace", headers={"x-floci-user": "lucas"})
+
+    assert response["statusCode"] == 201
+    trace = parse_body(response)["trace"]
+    assert trace["status"] == "failed"
+    assert trace["failure"]["code"] == "processor.validation_failed"
+    assert trace["steps"][-1]["id"] == "processor"
+    assert trace["steps"][-1]["status"] == "failed"
+    assert "missing required metadata" in trace["steps"][-1]["detail"]
+    assert trace["actions"][0]["id"] == "inspect-payload"
+    assert trace["actions"][1]["id"] == "export-report"
+
+    detail = invoke(handler, "GET", f"/ops/traces/{trace['id']}", headers={"x-floci-user": "lucas"})
+    assert detail["statusCode"] == 200
+    assert parse_body(detail)["trace"]["status"] == "failed"
+
+    report = invoke(handler, "GET", "/ops/report", headers={"x-floci-user": "lucas"}, query={"trace_id": trace["id"]})
+    assert report["statusCode"] == 200
+    assert parse_body(report)["report"]["trace"]["failure"]["retryable"] is True
+
+
+def test_ops_traces_endpoint_can_filter_failed_broken_flows():
+    repo = InMemoryRepository()
+    handler = create_handler(repository=repo)
+    invoke(handler, "POST", "/ops/demo/broken-trace", headers={"x-floci-user": "lucas"})
+
+    response = invoke(handler, "GET", "/ops/traces", headers={"x-floci-user": "lucas"}, query={"status": "failed"})
+
+    assert response["statusCode"] == 200
+    traces = parse_body(response)["data"]["traces"]
+    assert len(traces) == 1
+    assert traces[0]["status"] == "failed"
+    assert traces[0]["summary"] == "request stored object, indexed metadata, emitted event, processor failed with actionable reason"
 
 
 def test_create_object_validates_required_name():

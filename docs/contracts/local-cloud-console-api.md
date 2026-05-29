@@ -237,6 +237,38 @@ Exports a sanitized portfolio-ready trace report. If `trace_id` is omitted, the 
 
 Creates a deterministic bounded local flow for demos and returns the complete trace. This endpoint is safe only because it uses local demo data, local-only storage, and the existing bounded event processor.
 
+### `POST /ops/demo/broken-trace`
+
+Creates a deterministic local flow that fails at the processor step. This is the preferred demo for proving the Studio debugger wedge because it returns a reportable trace with an actionable failure reason.
+
+```json
+{
+  "trace": {
+    "id": "trace_obj_..._evt_...",
+    "status": "failed",
+    "failure": {
+      "code": "processor.validation_failed",
+      "reason": "processor rejected payload: missing required metadata customer_id",
+      "retryable": true
+    },
+    "steps": [
+      { "id": "request", "status": "ok" },
+      { "id": "payload", "status": "ok" },
+      { "id": "object-store", "status": "ok" },
+      { "id": "metadata", "status": "ok" },
+      { "id": "outbox", "status": "ok" },
+      { "id": "processor", "status": "failed" }
+    ],
+    "actions": [
+      { "id": "inspect-payload", "safe": true },
+      { "id": "export-report", "safe": true },
+      { "id": "process-pending", "safe": true }
+    ]
+  },
+  "request_id": "..."
+}
+```
+
 ### `GET /objects?limit={limit}&cursor={cursor}&category={category}`
 
 Lists local object metadata for the active owner.

@@ -57,3 +57,17 @@ def mark_event_processed(event: dict[str, Any], *, processed_at: str | None = No
     updated["attempts"] = int(updated.get("attempts", 0)) + 1
     updated["worker"] = "local-outbox-worker"
     return updated
+
+
+def mark_event_failed(event: dict[str, Any], *, reason: str, code: str, failed_at: str | None = None) -> dict[str, Any]:
+    updated = dict(event)
+    updated["status"] = "failed"
+    updated["failed_at"] = failed_at or utc_now_iso()
+    updated["attempts"] = max(int(updated.get("attempts", 0)), 1)
+    updated["worker"] = "local-outbox-worker"
+    updated["failure"] = {"code": code, "reason": reason, "retryable": True}
+    detail = dict(updated.get("detail") or {})
+    detail["failure_code"] = code
+    detail["failure_reason"] = reason
+    updated["detail"] = detail
+    return updated

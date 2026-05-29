@@ -16,6 +16,7 @@ class TraceEvent:
     status: str
     attempts: int
     detail: JsonDict
+    failure: JsonDict | None = None
 
     @classmethod
     def from_repository_event(cls, event: JsonDict) -> "TraceEvent":
@@ -27,6 +28,7 @@ class TraceEvent:
             status=str(event.get("status", "unknown")),
             attempts=int(event.get("attempts") or 0),
             detail=dict(event.get("detail") or {}),
+            failure=dict(event.get("failure") or {}) or None,
         )
 
 
@@ -62,7 +64,7 @@ def find_trace_event(*, trace_id: str, events: list[TraceEvent]) -> TraceEvent |
 
 def build_trace_detail(event: TraceEvent, *, owner_id: str) -> JsonDict:
     status = trace_status(event)
-    return {
+    detail = {
         "id": trace_id_for_event(event),
         "owner_id": owner_id,
         "status": status,
@@ -70,7 +72,11 @@ def build_trace_detail(event: TraceEvent, *, owner_id: str) -> JsonDict:
         "artifact": {"object_id": event.object_id, "event_id": event.id, "event_type": event.type},
         "steps": trace_steps(event=event, status=status),
         "commands": trace_commands(owner_id=owner_id),
+        "actions": trace_actions(trace_id_for_event(event)),
     }
+    if event.failure:
+        detail["failure"] = event.failure
+    return detail
 
 
 def trace_steps(*, event: TraceEvent, status: str) -> list[JsonDict]:
@@ -82,7 +88,25 @@ def trace_steps(*, event: TraceEvent, status: str) -> list[JsonDict]:
         {"id": "object-store", "label": "Object stored", "status": "ok", "detail": f"{object_detail} written to local S3-compatible storage"},
         {"id": "metadata", "label": "Metadata indexed", "status": "ok", "detail": "DynamoDB-compatible metadata row links owner, category, object id, and key"},
         {"id": "outbox", "label": "Outbox event emitted", "status": "ok", "detail": f"{event.id} captured as {event.type}"},
-        {"id": "processor", "label": "Outbox processed", "status": processor_status, "detail": "Bounded local processor consumed the event" if status == "complete" else "Event is waiting for bounded local processing"},
+        {"id": "processor", "label": "Outbox processed", "status": processor_status, "detail": processor_detail(event=event, status=status)},
+    ]
+
+
+def processor_detail(*, event: TraceEvent, status: str) -> str:
+    if status == "complete":
+        return "Bounded local processor consumed the event"
+    if status == "pending":
+        return "Event is waiting for bounded local processing"
+    if event.failure:
+        return str(event.failure.get("reason") or "Processor failed with actionable local reason")
+    return "Processor failed with unknown local reason"
+
+
+def trace_actions(trace_id: str) -> list[JsonDict]:
+    return [
+        {"id": "inspect-payload", "label": "Inspect payload", "method": "GET", "path": f"/ops/traces/{trace_id}", "safe": True},
+        {"id": "export-report", "label": "Export report", "method": "GET", "path": f"/ops/report?trace_id={trace_id}", "safe": True},
+        {"id": "process-pending", "label": "Process pending events", "method": "POST", "path": "/events/process?limit=10", "safe": True},
     ]
 
 
@@ -138,4 +162,6 @@ def trace_summary(event: TraceEvent) -> str:
         return "request stored object, indexed metadata, emitted event, processed outbox"
     if event.status == "pending":
         return "request stored object, indexed metadata, emitted event, awaiting processor"
+    if event.status == "failed" and event.failure:
+        return "request stored object, indexed metadata, emitted event, processor failed with actionable reason"
     return "request flow failed or has unknown processor state"
