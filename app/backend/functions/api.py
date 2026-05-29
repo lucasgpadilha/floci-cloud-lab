@@ -4,8 +4,10 @@ import base64
 import json
 from typing import Any, Callable
 
+from botocore.exceptions import ClientError, EndpointConnectionError
+
 from app.backend.functions.auth import normalized_headers, owner_from_event, request_id_from_event
-from app.backend.functions.errors import ApiError, BadRequest, NotFound, PayloadTooLarge, UnsupportedMediaType
+from app.backend.functions.errors import ApiError, BadRequest, LocalDependencyUnavailable, NotFound, PayloadTooLarge, UnsupportedMediaType
 from app.backend.functions.observability import (
     ObservabilitySink,
     extract_object_id_from_body,
@@ -190,6 +192,11 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
             error_code = error.code
             response_body = {"error": {"code": error.code, "message": error.message}, "request_id": request_id}
             return _observed_response(error.status_code, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms, error_code=error_code)
+        except (ClientError, EndpointConnectionError) as error:
+            dependency_error = _local_dependency_error(error)
+            error_code = dependency_error.code
+            response_body = {"error": {"code": dependency_error.code, "message": dependency_error.message}, "request_id": request_id}
+            return _observed_response(dependency_error.status_code, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms, error_code=error_code)
         except Exception as error:  # pragma: no cover - defensive Lambda error mapping
             error_code = "internal_error"
             response_body = {"error": {"code": error_code, "message": "unexpected server error"}, "request_id": request_id}
@@ -200,6 +207,15 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
 
 def lambda_handler(event: JsonDict, context: Any) -> JsonDict:
     return create_handler()(event, context)
+
+
+def _local_dependency_error(error: ClientError | EndpointConnectionError) -> LocalDependencyUnavailable:
+    code = "endpoint_connection_error"
+    if isinstance(error, ClientError):
+        code = str(error.response.get("Error", {}).get("Code") or "client_error")
+    return LocalDependencyUnavailable(
+        f"local Floci resources are not provisioned or reachable ({code}); run the local health/setup checks and create the local bucket/table before retrying."
+    )
 
 
 def _method_from_event(event: JsonDict) -> str:

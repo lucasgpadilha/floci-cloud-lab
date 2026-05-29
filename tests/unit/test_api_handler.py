@@ -1,6 +1,28 @@
 import json
 
+from botocore.exceptions import ClientError
+
 from app.backend.functions.api import create_handler
+
+
+class UnprovisionedLocalRepository:
+    def create_object(self, **_kwargs):
+        raise ClientError({"Error": {"Code": "NoSuchBucket", "Message": "The specified bucket does not exist."}}, "PutObject")
+
+    def list_objects(self, **_kwargs):
+        raise AssertionError("not used")
+
+    def get_object(self, **_kwargs):
+        raise AssertionError("not used")
+
+    def list_events(self, **_kwargs):
+        raise AssertionError("not used")
+
+    def process_pending_events(self, **_kwargs):
+        raise AssertionError("not used")
+
+    def mark_event_failed(self, **_kwargs):
+        raise AssertionError("not used")
 
 
 class InMemoryRepository:
@@ -392,6 +414,23 @@ def test_unknown_route_returns_404():
 
     assert response["statusCode"] == 404
     assert parse_body(response)["error"]["code"] == "not_found"
+
+
+def test_local_dependency_errors_are_actionable_not_internal_errors():
+    handler = create_handler(repository=UnprovisionedLocalRepository())
+
+    response = invoke(
+        handler,
+        "POST",
+        "/ops/demo/broken-trace",
+        headers={"x-floci-user": "lucas", "content-type": "application/json"},
+    )
+
+    assert response["statusCode"] == 503
+    body = parse_body(response)
+    assert body["error"]["code"] == "local_dependency_unavailable"
+    assert "local Floci resources are not provisioned" in body["error"]["message"]
+    assert "terraform apply" not in body["error"]["message"]
 
 
 def test_create_object_emits_event_and_worker_processes_it():
