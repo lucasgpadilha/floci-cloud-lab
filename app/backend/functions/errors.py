@@ -28,3 +28,8 @@ class PayloadTooLarge(ApiError):
 class NotFound(ApiError):
     def __init__(self, message: str):
         super().__init__(404, "not_found", message)
+
+
+class LocalDependencyUnavailable(ApiError):
+    def __init__(self, message: str):
+        super().__init__(503, "local_dependency_unavailable", message)

@@ -4,8 +4,10 @@ import base64
 import json
 from typing import Any, Callable
 
+from botocore.exceptions import ClientError, EndpointConnectionError
+
 from app.backend.functions.auth import normalized_headers, owner_from_event, request_id_from_event
-from app.backend.functions.errors import ApiError, BadRequest, NotFound, PayloadTooLarge, UnsupportedMediaType
+from app.backend.functions.errors import ApiError, BadRequest, LocalDependencyUnavailable, NotFound, PayloadTooLarge, UnsupportedMediaType
 from app.backend.functions.observability import (
     ObservabilitySink,
     extract_object_id_from_body,
@@ -13,6 +15,9 @@ from app.backend.functions.observability import (
     monotonic_ms,
     structured_log,
 )
+from app.backend.functions.ops.reports import build_sanitized_trace_report
+from app.backend.functions.ops.session import build_ops_session
+from app.backend.functions.ops.traces import TraceEvent, build_trace_detail, build_trace_list, find_trace_event, trace_id_for_event
 from app.backend.functions.repository import ObjectRepository, repository_from_env
 
 JsonDict = dict[str, Any]
@@ -41,6 +46,9 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
         response_body: JsonDict | None = None
         error_code: str | None = None
         try:
+            if owner_id is None:
+                raise BadRequest("validation_error", "x-floci-user header contains invalid characters")
+
             active_repo = repo or repository_from_env()
 
             if method == "OPTIONS":
@@ -56,6 +64,83 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
                     "request_id": request_id,
                 }
                 return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/status":
+                response_body = _ops_status_response(request_id)
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/resources":
+                response_body = _ops_resources_response(request_id)
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/session":
+                response_body = build_ops_session(request_id=request_id, owner_id=owner_id)
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/traces":
+                query = _query_parameters_from_event(event)
+                event_status = _repository_event_status_from_trace_status(query.get("status"))
+                events = _trace_events(active_repo.list_events(owner_id=owner_id, status=event_status, limit=_limit_from_query(query))["events"])
+                response_body = {"data": build_trace_list(events), "request_id": request_id}
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path.startswith("/ops/traces/"):
+                trace_id = path.removeprefix("/ops/traces/").strip()
+                if not trace_id:
+                    raise BadRequest("validation_error", "trace_id is required")
+                trace_event = _trace_event_from_id(active_repo, owner_id=owner_id, trace_id=trace_id)
+                if not trace_event:
+                    raise NotFound(f"trace {trace_id} was not found")
+                response_body = {"trace": build_trace_detail(trace_event, owner_id=owner_id), "request_id": request_id}
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "GET" and path == "/ops/report":
+                query = _query_parameters_from_event(event)
+                if query.get("trace_id"):
+                    trace_event = _trace_event_from_id(active_repo, owner_id=owner_id, trace_id=query["trace_id"])
+                else:
+                    events = _trace_events(active_repo.list_events(owner_id=owner_id, limit=1)["events"])
+                    trace_event = events[0] if events else None
+                if not trace_event:
+                    raise NotFound("no trace was found for report export")
+                trace = build_trace_detail(trace_event, owner_id=owner_id)
+                response_body = {"report": build_sanitized_trace_report(trace=trace, request_id=request_id), "request_id": request_id}
+                return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "POST" and path == "/ops/demo/trace":
+                record = active_repo.create_object(
+                    owner_id=owner_id,
+                    name="floci-studio-demo.md",
+                    content="# Floci Studio demo\n\nThis object was created by a bounded local trace demo.",
+                    content_type="text/markdown",
+                    metadata={"category": "flow-demo", "source": "ops-demo-trace"},
+                )
+                event_id = str((record.get("event") or {}).get("event_id", ""))
+                active_repo.process_pending_events(owner_id=owner_id, limit=1)
+                current_event = active_repo.get_event(owner_id=owner_id, event_id=event_id) if event_id else None
+                trace = build_trace_detail(TraceEvent.from_repository_event(current_event), owner_id=owner_id) if current_event else _trace_from_record(record, owner_id=owner_id, processed=False)
+                response_body = {"trace": trace, "request_id": request_id}
+                return _observed_response(201, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
+
+            if method == "POST" and path == "/ops/demo/broken-trace":
+                record = active_repo.create_object(
+                    owner_id=owner_id,
+                    name="broken-order-event.json",
+                    content='{"order_id":"demo-1001","total":42}',
+                    content_type="application/json",
+                    metadata={"category": "broken-flow-demo", "source": "ops-demo-broken-trace", "expected_metadata": "customer_id"},
+                )
+                event_id = str((record.get("event") or {}).get("event_id", ""))
+                if not event_id:
+                    raise BadRequest("validation_error", "demo trace event was not created")
+                failed_event = active_repo.mark_event_failed(
+                    owner_id=owner_id,
+                    event_id=event_id,
+                    code="processor.validation_failed",
+                    reason="processor rejected payload: missing required metadata customer_id",
+                )
+                response_body = {"trace": build_trace_detail(TraceEvent.from_repository_event(failed_event), owner_id=owner_id), "request_id": request_id}
+                return _observed_response(201, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
 
             if method == "POST" and path == "/objects":
                 _require_json_content_type(event)
@@ -116,6 +201,11 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
             error_code = error.code
             response_body = {"error": {"code": error.code, "message": error.message}, "request_id": request_id}
             return _observed_response(error.status_code, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms, error_code=error_code)
+        except (ClientError, EndpointConnectionError) as error:
+            dependency_error = _local_dependency_error(error)
+            error_code = dependency_error.code
+            response_body = {"error": {"code": dependency_error.code, "message": dependency_error.message}, "request_id": request_id}
+            return _observed_response(dependency_error.status_code, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms, error_code=error_code)
         except Exception as error:  # pragma: no cover - defensive Lambda error mapping
             error_code = "internal_error"
             response_body = {"error": {"code": error_code, "message": "unexpected server error"}, "request_id": request_id}
@@ -126,6 +216,15 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
 
 def lambda_handler(event: JsonDict, context: Any) -> JsonDict:
     return create_handler()(event, context)
+
+
+def _local_dependency_error(error: ClientError | EndpointConnectionError) -> LocalDependencyUnavailable:
+    code = "endpoint_connection_error"
+    if isinstance(error, ClientError):
+        code = str(error.response.get("Error", {}).get("Code") or "client_error")
+    return LocalDependencyUnavailable(
+        f"local Floci resources are not provisioned or reachable ({code}); run the local health/setup checks and create the local bucket/table before retrying."
+    )
 
 
 def _method_from_event(event: JsonDict) -> str:
@@ -207,6 +306,223 @@ def _validate_create_payload(payload: JsonDict) -> None:
         raise BadRequest("validation_error", "content_type must be a valid media type when provided")
 
 
+def _ops_status_response(request_id: str) -> JsonDict:
+    components = [
+        {
+            "id": "api",
+            "name": "Backend API",
+            "category": "compute",
+            "status": "online",
+            "engine": "Python Lambda-style HTTP adapter",
+            "aws_equivalent": "AWS::Lambda::Function",
+            "capabilities": ["http-api", "object-crud", "event-processing", "cors"],
+        },
+        {
+            "id": "storage",
+            "name": "Object Storage",
+            "category": "storage",
+            "status": "online",
+            "engine": "S3 (Local)",
+            "aws_equivalent": "AWS::S3::Bucket",
+            "capabilities": ["put-object", "get-object", "list-objects", "versioning"],
+        },
+        {
+            "id": "database",
+            "name": "Metadata Store",
+            "category": "database",
+            "status": "online",
+            "engine": "DynamoDB (Local)",
+            "aws_equivalent": "AWS::DynamoDB::Table",
+            "capabilities": ["metadata-index", "event-outbox", "pagination", "category-filter"],
+        },
+        {
+            "id": "observability",
+            "name": "Local Observability",
+            "category": "observability",
+            "status": "configured",
+            "engine": "Structured logs and in-process metrics",
+            "aws_equivalent": "AWS::Logs::LogGroup",
+            "capabilities": ["structured-logs", "request-metrics", "request-id-correlation"],
+        },
+    ]
+    return {
+        "status": "ready",
+        "mode": "local",
+        "service": "floci-cloud-lab-api",
+        "runtime": "local-floci",
+        "environment": {
+            "local_only": True,
+            "cloud_provider": "aws-compatible",
+            "emulator": "floci",
+            "region": "us-east-1",
+            "account_id": "000000000000",
+        },
+        "emulator": {
+            "name": "Floci",
+            "endpoint": "http://localhost:4566",
+            "connected": True,
+            "status": "online",
+        },
+        "database": {"engine": "DynamoDB (Local)", "status": "online"},
+        "storage": {"engine": "S3 (Local)", "status": "online"},
+        "components": components,
+        "safety": {
+            "local_only": True,
+            "uses_real_cloud": False,
+            "uses_real_credentials": False,
+            "allows_shell_execution": False,
+            "bounded_mutations_only": True,
+        },
+        "dashboard": {
+            "recommended_refresh_seconds": 5,
+            "primary_actions": [
+                {"id": "create-demo-object", "label": "Create demo object", "method": "POST", "path": "/objects", "safe": True},
+                {"id": "process-events", "label": "Process pending events", "method": "POST", "path": "/events/process?limit=10", "safe": True},
+            ],
+        },
+        "request_id": request_id,
+    }
+
+
+def _ops_resources_response(request_id: str) -> JsonDict:
+    resources = [
+        _resource(
+            id="api-function",
+            name="floci-cloud-lab-local-api",
+            type="AWS::Lambda::Function",
+            category="compute",
+            local_id="local-api-handler",
+            service="lambda",
+            resource_type="function",
+            description="Local API handler equivalent to a Lambda-backed HTTP API",
+            capabilities=["http-routing", "validation", "cors", "observability"],
+            display_order=5,
+            badge="API",
+            contains_demo_data=False,
+        ),
+        _resource(
+            id="objects-bucket",
+            name="floci-cloud-lab-local-objects",
+            type="AWS::S3::Bucket",
+            category="storage",
+            local_id="local-objects-bucket",
+            service="s3",
+            resource_type="bucket",
+            description="Primary object storage",
+            capabilities=["put-object", "get-object", "list-objects", "versioning"],
+            display_order=10,
+            badge="Storage",
+        ),
+        _resource(
+            id="metadata-table",
+            name="floci-cloud-lab-local-metadata",
+            type="AWS::DynamoDB::Table",
+            category="database",
+            local_id="local-metadata-table",
+            service="dynamodb",
+            resource_type="table",
+            description="Object metadata and event store",
+            capabilities=["object-metadata", "event-outbox", "query-by-owner", "pagination"],
+            display_order=20,
+            badge="Database",
+        ),
+        _resource(
+            id="app-logs",
+            name="/floci-cloud-lab/local/app",
+            type="AWS::Logs::LogGroup",
+            category="observability",
+            local_id="local-app-logs",
+            service="cloudwatch",
+            resource_type="log-group",
+            description="Application logs and request traces",
+            capabilities=["structured-logs", "request-id-correlation", "error-tracking"],
+            display_order=30,
+            badge="Logs",
+        ),
+    ]
+    return {
+        "resources": resources,
+        "categories": [
+            {"id": "compute", "label": "Compute", "description": "Local API and request handling"},
+            {"id": "storage", "label": "Storage", "description": "S3-compatible object storage"},
+            {"id": "database", "label": "Database", "description": "DynamoDB-compatible metadata and events"},
+            {"id": "observability", "label": "Observability", "description": "Logs, metrics, and traces"},
+        ],
+        "summary": {"count": len(resources), "available": len(resources), "degraded": 0, "offline": 0, "local_only": True},
+        "request_id": request_id,
+    }
+
+
+def _resource(
+    *,
+    id: str,
+    name: str,
+    type: str,
+    category: str,
+    local_id: str,
+    service: str,
+    resource_type: str,
+    description: str,
+    capabilities: list[str],
+    display_order: int,
+    badge: str,
+    contains_demo_data: bool = True,
+) -> JsonDict:
+    return {
+        "id": id,
+        "name": name,
+        "type": type,
+        "category": category,
+        "local_id": local_id,
+        "aws_equivalent": {"service": service, "resource_type": resource_type, "cloudformation_type": type},
+        "status": "available",
+        "description": description,
+        "capabilities": capabilities,
+        "safety": {"local_only": True, "contains_demo_data": contains_demo_data, "uses_real_cloud": False, "allows_shell_execution": False},
+        "dashboard": {"display_order": display_order, "badge": badge, "recommended_view": "resource-card"},
+    }
+
+
+def _trace_events(events: list[JsonDict]) -> list[TraceEvent]:
+    return [TraceEvent.from_repository_event(event) for event in events]
+
+
+def _repository_event_status_from_trace_status(status: str | None) -> str | None:
+    if status == "complete":
+        return "processed"
+    return status
+
+
+def _event_id_from_trace_id(trace_id: str) -> str | None:
+    if not trace_id.startswith("trace_"):
+        return None
+    marker = "_evt_"
+    if marker not in trace_id:
+        return None
+    return "evt_" + trace_id.rsplit(marker, 1)[1]
+
+
+def _trace_event_from_id(repo: ObjectRepository, *, owner_id: str, trace_id: str) -> TraceEvent | None:
+    event_id = _event_id_from_trace_id(trace_id)
+    if event_id:
+        event = repo.get_event(owner_id=owner_id, event_id=event_id)
+        if event:
+            trace_event = TraceEvent.from_repository_event(event)
+            if trace_id_for_event(trace_event) == trace_id:
+                return trace_event
+    # Backward-compatible fallback for unusual trace ids during local development.
+    events = _trace_events(repo.list_events(owner_id=owner_id, limit=100)["events"])
+    return find_trace_event(trace_id=trace_id, events=events)
+
+
+def _trace_from_record(record: JsonDict, *, owner_id: str, processed: bool) -> JsonDict:
+    event = dict(record.get("event") or {})
+    if processed:
+        event["status"] = "processed"
+        event["attempts"] = max(int(event.get("attempts") or 0), 1)
+    return build_trace_detail(TraceEvent.from_repository_event(event), owner_id=owner_id)
+
+
 def _observed_response(
     status_code: int,
     body: JsonDict,
@@ -215,7 +531,7 @@ def _observed_response(
     sink: ObservabilitySink,
     method: str,
     path: str,
-    owner_id: str,
+    owner_id: str | None,
     start_ms: float,
     error_code: str | None = None,
 ) -> JsonDict:
