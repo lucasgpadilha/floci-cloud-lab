@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 FLOCI_ENDPOINT="${FLOCI_ENDPOINT:-http://localhost:4566}"
+AWS_ENDPOINT_URL="${AWS_ENDPOINT_URL:-$FLOCI_ENDPOINT}"
 TF_DIR="infra/envs/local"
 
 log() { printf '\n== %s ==\n' "$*"; }
@@ -15,9 +16,13 @@ case "$FLOCI_ENDPOINT" in
   http://localhost:4566|http://127.0.0.1:4566) ;;
   *) fail "FLOCI_ENDPOINT must be local-only, got: $FLOCI_ENDPOINT" ;;
 esac
+case "$AWS_ENDPOINT_URL" in
+  http://localhost:4566|http://127.0.0.1:4566) ;;
+  *) fail "AWS_ENDPOINT_URL must be local-only, got: $AWS_ENDPOINT_URL" ;;
+esac
 
 log "forbidden CI guard"
-if [ -d .github/workflows ]; then
+if find . -path './.git' -prune -o -path './.github/workflows' -type d -print | grep -q .; then
   fail "GitHub Actions workflows are forbidden for this project"
 fi
 if find . -path './.git' -prune -o \( -name '.gitlab-ci.yml' -o -name 'gitlab-ci.yml' \) -print | grep -q .; then

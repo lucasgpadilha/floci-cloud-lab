@@ -12,7 +12,7 @@ This project is designed to be understandable in a 3-minute portfolio review and
 - Infrastructure as Code: Terraform modules, local environment wiring, provider endpoint overrides, validation, and plan/drift checks.
 - Serverless application design: Lambda-style Python handler, API routes, object metadata, and a local HTTP adapter for browser testing.
 - Data services: S3-compatible object storage with versioning, content-type/metadata preservation, SHA-256 integrity checks, presigned URL evidence, DynamoDB-compatible metadata persistence, conditional writes, pagination, TTL modeling, and service integration tests.
-- DevOps discipline: Makefile pipeline, shell checks, Docker Compose validation, local-only endpoint guardrails, and evidence artifacts.
+- DevOps discipline: canonical local Makefile pipeline, shell checks, Docker Compose validation, local-only endpoint guardrails, release approval gates, and sanitized evidence artifacts.
 - Resilience/operations discipline: backup manifest modeling, restore sequencing, failure-injection taxonomy, and idempotent replay drills.
 - Orchestration discipline: Step Functions-style workflow modeling, retries, catch branches, compensation plans, and idempotency evidence.
 - Container discipline: local Docker image, Compose app service, `/health` healthcheck, and ECS/Fargate mapping without ECR/ECS deployment.
@@ -100,7 +100,7 @@ AWS_SECRET_ACCESS_KEY=test
 
 ## Project status
 
-Current phase: Kubernetes platform baseline for EKS vs OKE comparison is implemented locally in the Phase 11 isolated worktree. Phases 1-10 are already merged on `main`.
+Current phase: Phase 12 local CI/CD and evidence capture is implemented in the isolated worktree. Phases 1-11 are already represented in the local lab history.
 
 Roadmap for becoming AWS-proficient with this project:
 
@@ -137,6 +137,7 @@ Implemented locally:
 - Orchestration demo via `make orchestration-demo` for Step Functions-style state transitions, retries, catch branches, compensation, and idempotency.
 - Container demo via `make app-container-demo` for local image build/run, Compose service health, and ECS/Fargate-ready runtime documentation.
 - Kubernetes baseline via `make k8s-validate` for portable manifests and EKS vs OKE comparison documentation without requiring a live cluster.
+- Local CI/CD via `make pipeline` and sanitized evidence capture via `make evidence` to `evidence/pipeline-latest.md`.
 
 ## Recommended review path
 

@@ -2,13 +2,15 @@ SHELL := /usr/bin/env bash
 PATH := $(HOME)/.local/bin:$(PATH)
 
 FLOCI_ENDPOINT ?= http://localhost:4566
+AWS_ENDPOINT_URL ?= $(FLOCI_ENDPOINT)
 AWS_DEFAULT_REGION ?= us-east-1
 AWS_ACCESS_KEY_ID ?= test
 AWS_SECRET_ACCESS_KEY ?= test
 PYTHON ?= python3
 VENV ?= .venv
+export FLOCI_ENDPOINT AWS_ENDPOINT_URL AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 
-.PHONY: check docs-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate compose-container-validate k8s-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo app-container-build app-container-demo app-container-health devops-audit pipeline
+.PHONY: check docs-check local-endpoint-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate compose-container-validate k8s-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo app-container-build app-container-demo app-container-health devops-audit pipeline evidence
 
 check: docs-check no-forbidden-ci k8s-validate terraform-fmt terraform-validate python-test
 
@@ -36,6 +38,9 @@ docs-check:
 	@test -f docs/containers-ecs.md
 	@test -f docs/eks-oke-comparison.md
 	@test -f docs/kubernetes-platform-baseline.md
+	@test -f docs/release-process.md
+	@test -f docs/agentic-delivery-workflow.md
+	@test -f scripts/capture-evidence.sh
 	@test -f k8s/base/kustomization.yaml
 	@test -f k8s/overlays/eks-local/kustomization.yaml
 	@test -f k8s/overlays/oke-reference/kustomization.yaml
@@ -45,9 +50,14 @@ docs-check:
 	@echo "docs-check: ok"
 
 no-forbidden-ci:
-	@if [ -d .github/workflows ]; then echo "ERROR: GitHub Actions workflows are forbidden for this project"; exit 1; fi
+	@if find . -path './.git' -prune -o -path './.github/workflows' -type d -print | grep -q .; then echo "ERROR: GitHub Actions workflows are forbidden for this project"; exit 1; fi
 	@if find . -path './.git' -prune -o \( -name '.gitlab-ci.yml' -o -name 'gitlab-ci.yml' \) -print | grep -q .; then echo "ERROR: GitLab runner config is forbidden for this project"; exit 1; fi
 	@echo "no-forbidden-ci: ok"
+
+local-endpoint-check:
+	@if [ "$(FLOCI_ENDPOINT)" != "http://localhost:4566" ] && [ "$(FLOCI_ENDPOINT)" != "http://127.0.0.1:4566" ]; then echo "ERROR: FLOCI_ENDPOINT must be local for pipeline/evidence"; exit 1; fi
+	@if [ "$(AWS_ENDPOINT_URL)" != "http://localhost:4566" ] && [ "$(AWS_ENDPOINT_URL)" != "http://127.0.0.1:4566" ]; then echo "ERROR: AWS_ENDPOINT_URL must be local for pipeline/evidence"; exit 1; fi
+	@echo "local-endpoint-check: ok"
 
 install-dev:
 	$(PYTHON) -m venv $(VENV)
@@ -137,4 +147,17 @@ app-container-health:
 devops-audit:
 	./scripts/devops-audit.sh
 
-pipeline: check compose-validate shell-check floci-health floci-smoke terraform-plan-local devops-audit
+pipeline:
+	@set -euo pipefail; \
+	steps="docs-check no-forbidden-ci local-endpoint-check shell-check compose-validate compose-container-validate k8s-validate terraform-fmt terraform-validate python-test floci-health floci-smoke terraform-plan-local"; \
+	total=$$(printf '%s\n' $$steps | wc -w); \
+	i=1; \
+	for target in $$steps; do \
+		echo "pipeline[$$i/$$total]: make $$target"; \
+		$(MAKE) $$target; \
+		i=$$((i + 1)); \
+	done; \
+	echo "pipeline: ok"
+
+evidence:
+	./scripts/capture-evidence.sh

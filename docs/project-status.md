@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-05-25T12:20:08-03:00
+Updated: 2026-05-28T18:54:22-03:00
 
 ## Current status
 
@@ -47,6 +47,7 @@ A comprehensive AWS proficiency roadmap is now planned in:
 - Added Phase 9 orchestration workflows: Step Functions-style state machine simulation, retry/catch modeling, compensation planning, deterministic execution history, tests, demo, and evidence.
 - Added Phase 10 containers/ECS-style workflows: local app Docker image, Compose service, healthcheck demo, container config tests, ECS/Fargate mapping docs, and evidence.
 - Added Phase 11 Kubernetes platform baseline: portable Kubernetes manifests, static validation, EKS vs OKE comparison docs, and local-only evidence notes.
+- Added Phase 12 local CI/CD and evidence capture: deterministic `make pipeline`, sanitized `make evidence`, release approval gates, and Hermes/agentic delivery workflow docs.
 
 ## Local resources created in Floci
 
@@ -98,22 +99,23 @@ Results:
 - Docker Compose config validation: passed
 - Shell syntax checks: passed
 - Forbidden CI check: passed; no GitHub Actions/GitLab runner config present
+- Phase 12 evidence capture writes sanitized output to `evidence/pipeline-latest.md` after local validation.
 
 ## Safety notes
 
 - Terraform provider is configured with fake credentials.
 - Terraform provider uses local Floci service endpoints.
 - `terraform-apply-local` refuses non-local Floci endpoints based on `FLOCI_ENDPOINT`.
-- `.terraform/`, `*.tfstate`, `.venv/`, `.env`, and evidence logs/json are ignored by git.
+- `.terraform/`, `*.tfstate`, `.venv/`, `.env`, and noisy cache directories are excluded from evidence capture.
 
 ## Remaining work
 
 Recommended next phases:
 
-1. Complete review/approval for Phase 1 portfolio polish, Phase 2 IAM/security foundations, Phase 3 API Gateway/Lambda proficiency, Phase 4 DynamoDB proficiency, and Phase 5 S3 proficiency.
-2. Review/approve Phases 6-10 and decide whether to run future local Terraform migrations for physical queues/topics/rules, CloudWatch alarms/dashboards, backup-oriented resources, Step Functions resources, or ECR/ECS resources.
-3. Add CodeBuild-style local pipeline dogfooding or richer frontend/reviewer demo polish.
-4. Add richer evidence capture for portfolio screenshots/logs.
+1. Review/approve Phase 12 local CI/CD changes and generated evidence.
+2. Decide whether to run future local Terraform migrations for physical queues/topics/rules, CloudWatch alarms/dashboards, backup-oriented resources, Step Functions resources, or ECR/ECS resources.
+3. Consider CodeBuild-style local pipeline dogfooding only if Floci supports the relevant APIs.
+4. Add richer portfolio screenshots or reviewer demo polish.
 5. Decide whether to copy or merge the isolated worktree result into the primary checkout after human review.
 
 ## Human approval still required
