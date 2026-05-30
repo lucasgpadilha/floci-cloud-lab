@@ -17,7 +17,7 @@ from app.backend.functions.observability import (
 )
 from app.backend.functions.ops.reports import build_sanitized_trace_report
 from app.backend.functions.ops.session import build_ops_session
-from app.backend.functions.ops.traces import TraceEvent, build_trace_detail, build_trace_list, find_trace_event
+from app.backend.functions.ops.traces import TraceEvent, build_trace_detail, build_trace_list, find_trace_event, trace_id_for_event
 from app.backend.functions.repository import ObjectRepository, repository_from_env
 
 JsonDict = dict[str, Any]
@@ -46,6 +46,9 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
         response_body: JsonDict | None = None
         error_code: str | None = None
         try:
+            if owner_id is None:
+                raise BadRequest("validation_error", "x-floci-user header contains invalid characters")
+
             active_repo = repo or repository_from_env()
 
             if method == "OPTIONS":
@@ -76,7 +79,8 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
 
             if method == "GET" and path == "/ops/traces":
                 query = _query_parameters_from_event(event)
-                events = _trace_events(active_repo.list_events(owner_id=owner_id, status=query.get("status"), limit=_limit_from_query(query))["events"])
+                event_status = _repository_event_status_from_trace_status(query.get("status"))
+                events = _trace_events(active_repo.list_events(owner_id=owner_id, status=event_status, limit=_limit_from_query(query))["events"])
                 response_body = {"data": build_trace_list(events), "request_id": request_id}
                 return _observed_response(200, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
 
@@ -84,8 +88,7 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
                 trace_id = path.removeprefix("/ops/traces/").strip()
                 if not trace_id:
                     raise BadRequest("validation_error", "trace_id is required")
-                events = _trace_events(active_repo.list_events(owner_id=owner_id, limit=100)["events"])
-                trace_event = find_trace_event(trace_id=trace_id, events=events)
+                trace_event = _trace_event_from_id(active_repo, owner_id=owner_id, trace_id=trace_id)
                 if not trace_event:
                     raise NotFound(f"trace {trace_id} was not found")
                 response_body = {"trace": build_trace_detail(trace_event, owner_id=owner_id), "request_id": request_id}
@@ -93,8 +96,11 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
 
             if method == "GET" and path == "/ops/report":
                 query = _query_parameters_from_event(event)
-                events = _trace_events(active_repo.list_events(owner_id=owner_id, limit=100)["events"])
-                trace_event = find_trace_event(trace_id=query["trace_id"], events=events) if query.get("trace_id") else (events[0] if events else None)
+                if query.get("trace_id"):
+                    trace_event = _trace_event_from_id(active_repo, owner_id=owner_id, trace_id=query["trace_id"])
+                else:
+                    events = _trace_events(active_repo.list_events(owner_id=owner_id, limit=1)["events"])
+                    trace_event = events[0] if events else None
                 if not trace_event:
                     raise NotFound("no trace was found for report export")
                 trace = build_trace_detail(trace_event, owner_id=owner_id)
@@ -109,8 +115,11 @@ def create_handler(repository: ObjectRepository | None = None, observability_sin
                     content_type="text/markdown",
                     metadata={"category": "flow-demo", "source": "ops-demo-trace"},
                 )
+                event_id = str((record.get("event") or {}).get("event_id", ""))
                 active_repo.process_pending_events(owner_id=owner_id, limit=1)
-                response_body = {"trace": _trace_from_record(record, owner_id=owner_id, processed=True), "request_id": request_id}
+                current_event = active_repo.get_event(owner_id=owner_id, event_id=event_id) if event_id else None
+                trace = build_trace_detail(TraceEvent.from_repository_event(current_event), owner_id=owner_id) if current_event else _trace_from_record(record, owner_id=owner_id, processed=False)
+                response_body = {"trace": trace, "request_id": request_id}
                 return _observed_response(201, response_body, request_id=request_id, sink=sink, method=method, path=path, owner_id=owner_id, start_ms=start_ms)
 
             if method == "POST" and path == "/ops/demo/broken-trace":
@@ -478,6 +487,34 @@ def _trace_events(events: list[JsonDict]) -> list[TraceEvent]:
     return [TraceEvent.from_repository_event(event) for event in events]
 
 
+def _repository_event_status_from_trace_status(status: str | None) -> str | None:
+    if status == "complete":
+        return "processed"
+    return status
+
+
+def _event_id_from_trace_id(trace_id: str) -> str | None:
+    if not trace_id.startswith("trace_"):
+        return None
+    marker = "_evt_"
+    if marker not in trace_id:
+        return None
+    return "evt_" + trace_id.rsplit(marker, 1)[1]
+
+
+def _trace_event_from_id(repo: ObjectRepository, *, owner_id: str, trace_id: str) -> TraceEvent | None:
+    event_id = _event_id_from_trace_id(trace_id)
+    if event_id:
+        event = repo.get_event(owner_id=owner_id, event_id=event_id)
+        if event:
+            trace_event = TraceEvent.from_repository_event(event)
+            if trace_id_for_event(trace_event) == trace_id:
+                return trace_event
+    # Backward-compatible fallback for unusual trace ids during local development.
+    events = _trace_events(repo.list_events(owner_id=owner_id, limit=100)["events"])
+    return find_trace_event(trace_id=trace_id, events=events)
+
+
 def _trace_from_record(record: JsonDict, *, owner_id: str, processed: bool) -> JsonDict:
     event = dict(record.get("event") or {})
     if processed:
@@ -494,7 +531,7 @@ def _observed_response(
     sink: ObservabilitySink,
     method: str,
     path: str,
-    owner_id: str,
+    owner_id: str | None,
     start_ms: float,
     error_code: str | None = None,
 ) -> JsonDict:

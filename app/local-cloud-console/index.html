@@ -90,6 +90,11 @@
     .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .72fr); gap: 14px; margin-top: 14px; align-items: start; }
     .evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .empty { border: 1px dashed var(--line); border-radius: 14px; padding: 18px; color: var(--muted); text-align: center; }
+    .topology { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .topology-node { border: 1px solid var(--line); border-radius: 999px; padding: 6px 8px; background: #fbf8f1; }
+    .topology-arrow { color: var(--muted); font-family: var(--mono); }
+    .capability-list { display: grid; gap: 6px; }
+    .capability-list .badge { justify-content: flex-start; width: fit-content; }
     .toast { position: fixed; right: 18px; bottom: 18px; max-width: 460px; background: var(--ink); color: var(--paper); padding: 12px 14px; border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,.24); display: none; z-index: 30; }
     .toast.show { display: block; }
     @media (max-width: 1040px) { .top, .layout, .split { grid-template-columns: 1fr; } .badge-row { justify-content: flex-start; } .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -123,6 +128,14 @@
           <div><h2>Failed trace queue</h2><p>Start with a known-broken local flow, then inspect the evidence.</p></div>
         </div>
         <div class="panel-body stack">
+          <section class="stack" aria-label="Local session">
+            <div class="meta-grid" id="session-meta">
+              <div class="meta"><span>adapter</span><strong>—</strong></div>
+              <div class="meta"><span>mode</span><strong>—</strong></div>
+            </div>
+            <div class="capability-list" id="capability-list"><div class="empty">Session capabilities not loaded yet.</div></div>
+            <div class="topology" id="topology-strip"><span class="muted">Topology appears after /ops/session loads.</span></div>
+          </section>
           <button class="primary" id="create-broken-trace">Create broken trace</button>
           <div class="toolbar-row">
             <label>Status filter<select id="trace-status"><option value="failed">failed</option><option value="pending">pending</option><option value="complete">complete</option><option value="">all</option></select></label>
@@ -179,11 +192,11 @@
     </main>
   </div>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const state = { traces: [], selectedTrace: null, report: null, firstCommand: '', selectedObject: null };
+    const state = { session: null, traces: [], selectedTrace: null, report: null, firstCommand: '', selectedObject: null };
     const safeLocal = (url) => {
       try {
         const parsed = new URL(url.trim());
@@ -209,6 +222,7 @@
     function text(tag, value, className) { const el = document.createElement(tag); if (className) el.className = className; el.textContent = value == null || value === '' ? '—' : String(value); return el; }
     function statusPill(value) { return text('span', value || 'unknown', `status ${String(value || '').toLowerCase()}`); }
     function setLoading(id, loading) { const el = $(id); if (el) el.disabled = Boolean(loading); }
+    function renderBadge(target, label, dotClass = '') { const root = $(target); clear(root); const dot = document.createElement('span'); dot.className = `dot ${dotClass}`.trim(); root.append(dot, document.createTextNode(label)); }
 
     async function request(path, options = {}) {
       if (!safeLocal(apiUrl())) throw new Error('Blocked non-local API URL. Use localhost or 127.0.0.1.');
@@ -226,12 +240,37 @@
     async function checkHealth() {
       try {
         const body = await request('/health');
-        $('health-badge').innerHTML = '<span class="dot ok"></span>API online';
+        renderBadge('health-badge', 'API online', 'ok');
         return body;
       } catch (error) {
-        $('health-badge').innerHTML = '<span class="dot err"></span>API offline';
+        renderBadge('health-badge', 'API offline', 'err');
         throw error;
       }
+    }
+
+    async function loadSession() {
+      const body = await request('/ops/session');
+      state.session = body;
+      renderSession(body);
+      return body;
+    }
+
+    function renderSession(session) {
+      const meta = $('session-meta'); clear(meta);
+      const adapter = session.adapter || {};
+      const safety = session.safety || {};
+      [['adapter', adapter.name], ['endpoint', adapter.endpoint], ['mode', session.session?.mode], ['shell', safety.allows_shell_execution === false ? 'blocked' : 'unknown']].forEach(([label, value]) => {
+        const item = document.createElement('div'); item.className = 'meta'; item.append(text('span', label), text('strong', value, 'mono')); meta.appendChild(item);
+      });
+      const caps = $('capability-list'); clear(caps);
+      (session.capabilities || []).forEach((capability) => caps.appendChild(text('span', capability.label || capability.id, 'badge safe')));
+      if (!caps.firstChild) caps.appendChild(text('div', 'No capabilities returned by /ops/session.', 'empty'));
+      const topology = $('topology-strip'); clear(topology);
+      (session.service_map || []).forEach((node, index) => {
+        if (index) topology.appendChild(text('span', '→', 'topology-arrow'));
+        topology.appendChild(text('span', node.label || node.id, 'topology-node mono'));
+      });
+      if (!topology.firstChild) topology.appendChild(text('span', 'No topology returned.', 'muted'));
     }
 
     async function createBrokenTrace() {
@@ -352,7 +391,14 @@
       } catch (error) { toast(error.message, true); }
     }
 
-    async function copyText(value, message) { await navigator.clipboard.writeText(value); toast(message); }
+    async function copyText(value, message) {
+      try {
+        await navigator.clipboard.writeText(value);
+        toast(message);
+      } catch (_) {
+        toast('Clipboard copy failed. Select the text manually from the panel.', true);
+      }
+    }
 
     $('create-broken-trace').addEventListener('click', createBrokenTrace);
     $('refresh-traces').addEventListener('click', loadTraces);
@@ -366,7 +412,7 @@
       const saved = localStorage.getItem(`floci-studio:${id}`); if (saved) $(id).value = saved;
       $(id).addEventListener('change', () => { localStorage.setItem(`floci-studio:${id}`, $(id).value); checkHealth().then(loadTraces).catch((error) => toast(error.message, true)); });
     });
-    window.addEventListener('DOMContentLoaded', () => { checkHealth().then(loadTraces).catch((error) => toast(error.message, true)); });
+    window.addEventListener('DOMContentLoaded', () => { checkHealth().then(loadSession).then(loadTraces).catch((error) => toast(error.message, true)); });
   </script>
 </body>
 </html>

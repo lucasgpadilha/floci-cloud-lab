@@ -65,6 +65,8 @@ class ObjectRepository(Protocol):
 
     def list_events(self, *, owner_id: str, status: str | None = None, limit: int = DEFAULT_PAGE_LIMIT) -> dict[str, Any]: ...
 
+    def get_event(self, *, owner_id: str, event_id: str) -> dict[str, Any] | None: ...
+
     def process_pending_events(self, *, owner_id: str, limit: int = DEFAULT_PAGE_LIMIT) -> dict[str, Any]: ...
 
     def mark_event_failed(self, *, owner_id: str, event_id: str, reason: str, code: str) -> dict[str, Any]: ...
@@ -267,6 +269,16 @@ class AwsObjectRepository:
         if status:
             events = [event for event in events if event.get("status") == status]
         return {"count": len(events[:limit]), "events": events[:limit]}
+
+    def get_event(self, *, owner_id: str, event_id: str) -> dict[str, Any] | None:
+        response = self._table.query(
+            KeyConditionExpression=Key("pk").eq(f"OWNER#{owner_id}") & Key("sk").begins_with("EVENT#"),
+            ConsistentRead=True,
+        )
+        for event in response.get("Items", []):
+            if event.get("event_id") == event_id:
+                return _to_json_safe(public_event(event))
+        return None
 
     def process_pending_events(self, *, owner_id: str, limit: int = DEFAULT_PAGE_LIMIT) -> dict[str, Any]:
         response = self._table.query(

@@ -16,7 +16,7 @@ def build_sanitized_trace_report(*, trace: JsonDict, request_id: str) -> JsonDic
     return {
         "format": "floci.trace-report.v1",
         "request_id": request_id,
-        "trace": _sanitize(trace),
+        "trace": sanitize_secrets(trace),
         "safety": {
             "sanitized": True,
             "contains_real_credentials": False,
@@ -26,16 +26,16 @@ def build_sanitized_trace_report(*, trace: JsonDict, request_id: str) -> JsonDic
         "reproduction": {
             "local_only": True,
             "requires_real_cloud": False,
-            "commands": _sanitize(trace.get("commands", [])),
+            "commands": sanitize_secrets(trace.get("commands", [])),
         },
     }
 
 
-def _sanitize(value: Any) -> Any:
+def sanitize_secrets(value: Any) -> Any:
     if isinstance(value, dict):
-        return {str(key): _sanitize(item) for key, item in value.items() if not _is_sensitive_key(str(key))}
+        return {str(key): sanitize_secrets(item) for key, item in value.items() if not _is_sensitive_key(str(key))}
     if isinstance(value, list):
-        return [_sanitize(item) for item in value]
+        return [sanitize_secrets(item) for item in value]
     if isinstance(value, str):
         sanitized = SECRET_ASSIGNMENT.sub("[REDACTED]", value)
         return SECRET_NAMES.sub("[REDACTED]", sanitized)

@@ -12,11 +12,18 @@ def normalized_headers(event: JsonDict) -> dict[str, str]:
     return {str(key).lower(): str(value) for key, value in (event.get("headers") or {}).items()}
 
 
-def owner_from_event(event: JsonDict) -> str:
+def owner_from_event(event: JsonDict) -> str | None:
     headers = normalized_headers(event)
-    owner_id = headers.get("x-floci-user", "local-user").strip() or "local-user"
-    if not SAFE_OWNER_ID.fullmatch(owner_id):
+    raw_owner = headers.get("x-floci-user")
+    if raw_owner is None:
         return "local-user"
+
+    owner_id = raw_owner.strip()
+    if not owner_id:
+        return "local-user"
+
+    if not SAFE_OWNER_ID.fullmatch(owner_id):
+        return None
     return owner_id
 
 

@@ -4,6 +4,8 @@ import shlex
 from dataclasses import dataclass
 from typing import Any
 
+from app.backend.functions.ops.reports import sanitize_secrets
+
 JsonDict = dict[str, Any]
 
 
@@ -70,12 +72,12 @@ def build_trace_detail(event: TraceEvent, *, owner_id: str) -> JsonDict:
         "status": status,
         "summary": trace_summary(event),
         "artifact": {"object_id": event.object_id, "event_id": event.id, "event_type": event.type},
-        "steps": trace_steps(event=event, status=status),
+        "steps": sanitize_secrets(trace_steps(event=event, status=status)),
         "commands": trace_commands(owner_id=owner_id),
         "actions": trace_actions(trace_id_for_event(event)),
     }
     if event.failure:
-        detail["failure"] = event.failure
+        detail["failure"] = sanitize_secrets(event.failure)
     return detail
 
 

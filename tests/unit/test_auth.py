@@ -7,10 +7,10 @@ def test_owner_from_event_accepts_portfolio_safe_identifiers():
     assert owner_from_event(event) == "lucas.dev-01"
 
 
-def test_owner_from_event_rejects_shell_metacharacters_to_safe_default():
+def test_owner_from_event_rejects_shell_metacharacters_returning_none():
     event = {"headers": {"x-floci-user": "lucas'; rm -rf / #"}}
 
-    assert owner_from_event(event) == "local-user"
+    assert owner_from_event(event) is None
 
 
 def test_request_id_rejects_control_characters_to_prevent_header_injection():
