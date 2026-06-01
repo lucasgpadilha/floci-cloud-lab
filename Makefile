@@ -10,7 +10,7 @@ PYTHON ?= python3
 VENV ?= .venv
 export FLOCI_ENDPOINT AWS_ENDPOINT_URL AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 
-.PHONY: check docs-check local-endpoint-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate compose-container-validate k8s-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process observability-demo resilience-drill orchestration-demo app-container-build app-container-demo app-container-health devops-audit pipeline evidence
+.PHONY: check docs-check local-endpoint-check no-forbidden-ci install-dev floci-up floci-down floci-health floci-env floci-smoke compose-validate compose-container-validate k8s-validate shell-check terraform-fmt terraform-init-local terraform-validate terraform-plan-local terraform-drift-check terraform-apply-local python-test app-demo app-api-local app-events-process floci-studio-evidence observability-demo resilience-drill orchestration-demo app-container-build app-container-demo app-container-health devops-audit pipeline evidence
 
 check: docs-check no-forbidden-ci k8s-validate terraform-fmt terraform-validate python-test
 
@@ -41,6 +41,8 @@ docs-check:
 	@test -f docs/release-process.md
 	@test -f docs/agentic-delivery-workflow.md
 	@test -f scripts/capture-evidence.sh
+	@test -f scripts/floci-studio-evidence.sh
+	@test -f evidence/floci-studio-trace-debugger.md
 	@test -f k8s/base/kustomization.yaml
 	@test -f k8s/overlays/eks-local/kustomization.yaml
 	@test -f k8s/overlays/oke-reference/kustomization.yaml
@@ -125,6 +127,9 @@ app-api-local:
 
 app-events-process:
 	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/process-events.py; else $(PYTHON) scripts/process-events.py; fi
+
+floci-studio-evidence:
+	./scripts/floci-studio-evidence.sh
 
 observability-demo:
 	@if [ -x $(VENV)/bin/python ]; then $(VENV)/bin/python scripts/observability-demo.py; else $(PYTHON) scripts/observability-demo.py; fi

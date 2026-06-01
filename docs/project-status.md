@@ -1,12 +1,15 @@
 # Project Status
 
-Updated: 2026-05-28T18:54:22-03:00
+Updated: 2026-05-30T13:46:07-03:00
 
 ## Current status
 
-The local Floci Cloud Lab baseline is available in the isolated worktree:
+The merged lab now includes Floci Studio, a trace-first local workflow debugger for AWS-shaped emulator flows. Phase 14 is adding the runtime evidence pack that proves the first-click debugging path and keeps the local-only safety boundary explicit.
 
-`/home/lucas/agentic/runs/floci-cloud-lab-codex`
+The active Phase 14 worktree is:
+
+`/home/lucas/agentic/runs/floci-cloud-lab-gemini`
+
 
 The primary repo checkout remains at:
 
@@ -48,6 +51,8 @@ A comprehensive AWS proficiency roadmap is now planned in:
 - Added Phase 10 containers/ECS-style workflows: local app Docker image, Compose service, healthcheck demo, container config tests, ECS/Fargate mapping docs, and evidence.
 - Added Phase 11 Kubernetes platform baseline: portable Kubernetes manifests, static validation, EKS vs OKE comparison docs, and local-only evidence notes.
 - Added Phase 12 local CI/CD and evidence capture: deterministic `make pipeline`, sanitized `make evidence`, release approval gates, and Hermes/agentic delivery workflow docs.
+- Added Phase 13 Floci Studio: trace-first local workflow debugger, bounded demo traces, broken-flow debugger slice, sanitized report export, and browser workbench UI.
+- Started Phase 14 Floci Studio runtime evidence: `scripts/floci-studio-evidence.sh`, `make floci-studio-evidence`, and `evidence/floci-studio-trace-debugger.md`.
 
 ## Local resources created in Floci
 
@@ -100,6 +105,7 @@ Results:
 - Shell syntax checks: passed
 - Forbidden CI check: passed; no GitHub Actions/GitLab runner config present
 - Phase 12 evidence capture writes sanitized output to `evidence/pipeline-latest.md` after local validation.
+- Phase 14 local validation: unit suite currently reports `92 passed`; `bash -n scripts/floci-studio-evidence.sh` and `git diff --check` are required before commit.
 
 ## Safety notes
 
@@ -112,11 +118,10 @@ Results:
 
 Recommended next phases:
 
-1. Review/approve Phase 12 local CI/CD changes and generated evidence.
-2. Decide whether to run future local Terraform migrations for physical queues/topics/rules, CloudWatch alarms/dashboards, backup-oriented resources, Step Functions resources, or ECR/ECS resources.
-3. Consider CodeBuild-style local pipeline dogfooding only if Floci supports the relevant APIs.
-4. Add richer portfolio screenshots or reviewer demo polish.
-5. Decide whether to copy or merge the isolated worktree result into the primary checkout after human review.
+1. Run the Floci Studio evidence capture against a provisioned local emulator runtime.
+2. Review the generated `evidence/floci-studio-trace-debugger.md` for portfolio clarity.
+3. If local bucket/table resources are missing, explicitly approve bounded local provisioning before rerunning runtime capture.
+4. Next product increment: bounded trace replay (`inspect failed trace -> patch local input -> rerun -> compare reports`).
 
 ## Human approval still required
 

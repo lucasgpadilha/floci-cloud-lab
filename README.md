@@ -18,9 +18,10 @@ This project is designed to be understandable in a 3-minute portfolio review and
 - Container discipline: local Docker image, Compose app service, `/health` healthcheck, and ECS/Fargate mapping without ECR/ECS deployment.
 - Kubernetes platform discipline: portable manifests for namespace, service account, deployment, service, HPA, and network policy with EKS vs OKE comparison notes.
 - Security and cost awareness: fake local credentials, no default real AWS endpoints, no GitHub Actions/GitLab runners, and no cloud spend by default.
-- Documentation quality: architecture notes, runbook, status tracking, roadmap, and interview-oriented walkthroughs.
+- Documentation quality: architecture notes, runbook, status tracking, roadmap, evidence packs, and interview-oriented walkthroughs.
+- Floci Studio: a local-first trace/debug workbench for cloud-shaped emulator workflows. Inspect what happened, why it broke, and export reproducible sanitized reports.
 
-## Quick demo in 5 commands
+## Quick demo in 6 commands
 
 From this repository/worktree:
 
@@ -30,18 +31,19 @@ make floci-health
 make check
 make terraform-plan-local
 make app-demo
+make app-api-local  # Start the Floci Studio API/workbench backend
 ```
 
-Optional browser demo:
-
-```bash
-make app-api-local
-```
-
-Then open:
+Optional browser/workbench demo:
 
 ```text
-app/frontend/index.html
+app/local-cloud-console/index.html
+```
+
+Optional Floci Studio evidence capture, from a second terminal while `make app-api-local` is running:
+
+```bash
+make floci-studio-evidence
 ```
 
 The local resources target only:
@@ -68,6 +70,7 @@ http://localhost:4566
 | Kubernetes platform baseline | Implemented with Phase 11 local/reference workflow | Portable Kubernetes manifests and static validation for namespace, service account, deployment, service, HPA, and network policy | EKS clusters, managed node groups/Fargate profiles, ECR, AWS Load Balancer Controller, CloudWatch Container Insights |
 | Observability depth | Implemented with Phase 7 local signals | Structured JSON logs, CloudWatch-style metric records, request/trace correlation, demo evidence, runbook drills | CloudWatch Logs, Metrics, Alarms, Dashboards, X-Ray/OpenTelemetry |
 | Resilience/operations | Implemented with Phase 8 local drills | Backup manifest, restore plan, checksum verification, failure-injection taxonomy, idempotent event replay | AWS Backup, S3 version restore, DynamoDB PITR/export, SQS/Lambda idempotency runbooks |
+| Workflow debugging | Implemented with Floci Studio | Trace-first local workbench, broken flow debugger, causal timeline, and sanitized report export | CloudWatch ServiceLens, X-Ray/OpenTelemetry, local Temporal/Inngest-style dev tooling |
 
 ## Chosen stack
 
@@ -100,7 +103,7 @@ AWS_SECRET_ACCESS_KEY=test
 
 ## Project status
 
-Current phase: Phase 12 local CI/CD and evidence capture is implemented in the isolated worktree. Phases 1-11 are already represented in the local lab history.
+Current phase: Phase 14 Floci Studio runtime evidence pack is in progress. Phases 1-13 are already represented in the local lab history and merged into `main`.
 
 Roadmap for becoming AWS-proficient with this project:
 
@@ -138,6 +141,8 @@ Implemented locally:
 - Container demo via `make app-container-demo` for local image build/run, Compose service health, and ECS/Fargate-ready runtime documentation.
 - Kubernetes baseline via `make k8s-validate` for portable manifests and EKS vs OKE comparison documentation without requiring a live cluster.
 - Local CI/CD via `make pipeline` and sanitized evidence capture via `make evidence` to `evidence/pipeline-latest.md`.
+- Floci Studio via `app/local-cloud-console/index.html` for trace-first debugging, causal workflow inspection, deterministic broken-flow verification, and sanitized report export.
+- Floci Studio runtime evidence capture via `make floci-studio-evidence` to `evidence/floci-studio-trace-debugger.md`.
 
 ## Recommended review path
 
